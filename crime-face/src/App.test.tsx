@@ -1,9 +1,8 @@
-import React from 'react';
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
-test('renders learn react link', () => {
+test('renders the sign-in check while auth status is pending', () => {
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+  const status = screen.getByText(/checking sign-in status/i);
+  expect(status).toBeInTheDocument();
 });

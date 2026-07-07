@@ -36,6 +36,7 @@ lerna-debug.log*
 catalyst-cli.log
 **/.catalyst/
 functions/**/node_modules/
+.build/
 
 # ---- Editor / IDE ----
 .vscode/
