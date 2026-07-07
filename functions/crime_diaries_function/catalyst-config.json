@@ -3,7 +3,14 @@
 		"name": "crime_diaries_function",
 		"stack": "node24",
 		"type": "advancedio",
-		"env_variables": {}
+		"env_variables": {
+			"CATALYST_ORG": "60073147848",
+			"LLM_API_URL": "https://api.catalyst.zoho.in/quickml/v1/project/43199000000021001/vlm/chat",
+			"LLM_API_KEY": "",
+			"RAG_API_URL": "https://console.catalyst.zoho.in/quickml/v1/project/43199000000021001/rag/answer",
+			"RAG_API_KEY": "",
+			"RAG_DOCUMENT_IDS": "3118000000003006, 3118000000003002, 3118000000002056, 3118000000003043, 3118000000002044, 3118000000002040, 3118000000002048, 3118000000002051, 3118000000003032, 3118000000003036"
+		}
 	},
 	"execution": {
 		"main": "index.js"
