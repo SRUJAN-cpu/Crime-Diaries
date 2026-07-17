@@ -9,17 +9,5 @@
   "client": {
     "source": "crime-face",
     "plugin": "zcatalyst-cli-plugin-react"
-  },
-  "appsail": [
-    {
-      "source": "appsail-nodejs",
-      "name": "AppsailExample"
-    }
-  ],
-  "slate": [
-    {
-      "name": "react-appsail",
-      "source": "C:\\Crime-Diaries\\react-appsail"
-    }
-  ]
+  }
 }
