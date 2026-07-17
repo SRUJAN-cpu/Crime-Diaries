@@ -43,7 +43,7 @@ export function AuthGate({ children }: AuthGateProps) {
         if (cancelled) {
           return;
         }
-        if (response.status === 'success') {
+        if (response.status === 200) {
           setUser(response.data as unknown as CurrentUser);
           setStatus('signed-in');
           return;

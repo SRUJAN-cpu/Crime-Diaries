@@ -12,8 +12,12 @@ export interface CatalystSignInConfig {
   forgotPasswordCssUrl?: string;
 }
 
+// The SDK's wrapResponse() unwraps the raw server body ({status: "success"|
+// "failure", data: {...}}) and re-wraps it as {status: <HTTP status code
+// NUMBER>, data: <the inner data object>} — the "success"/"failure" string
+// only exists in the raw response body, not in what this method resolves to.
 export interface CatalystProjectUserResponse {
-  status: 'success' | 'failure';
+  status: number;
   data: {
     user_id: string;
     email_id: string;
