@@ -41,6 +41,7 @@ export function AuthGate({ children }: AuthGateProps) {
         return;
       }
 
+      console.log('[AuthGate] starting check, cancelled =', cancelled);
       try {
         // Never hang on "Checking..." forever if the SDK call itself never
         // settles — bail to the sign-in screen after a timeout instead.
@@ -50,19 +51,25 @@ export function AuthGate({ children }: AuthGateProps) {
             setTimeout(() => reject(new Error('Timed out checking sign-in status')), 6000)
           )
         ]);
+        console.log('[AuthGate] got response', response, 'cancelled =', cancelled);
         if (cancelled) {
+          console.log('[AuthGate] bailing: cancelled after response');
           return;
         }
-        if (response.status === 200) {
+        if (response && response.status === 200) {
+          console.log('[AuthGate] success, setting user', response.data);
           setUser(response.data as unknown as CurrentUser);
           return;
         }
+        console.log('[AuthGate] response was not a 200:', response);
       } catch (err) {
+        console.log('[AuthGate] caught error', err, 'cancelled =', cancelled);
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Failed to check sign-in status');
         }
       }
 
+      console.log('[AuthGate] falling through to signed-out, cancelled =', cancelled);
       if (!cancelled) {
         setStatus('signed-out');
       }
