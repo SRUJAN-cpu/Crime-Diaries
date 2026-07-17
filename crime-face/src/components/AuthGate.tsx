@@ -16,6 +16,10 @@ const SIGN_IN_ATTEMPTED_KEY = 'catalyst-sign-in-attempted';
 
 type Status = 'checking' | 'signed-out' | 'signed-in' | 'sdk-unavailable' | 'loop-detected';
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function AuthGate({ children }: AuthGateProps) {
   const [status, setStatus] = useState<Status>('checking');
   const [user, setUser] = useState<CurrentUser | null>(null);
@@ -24,9 +28,8 @@ export function AuthGate({ children }: AuthGateProps) {
   useEffect(() => {
     let cancelled = false;
 
-    // Strip any PROJECT_ID/service_url query params a previous sign-in
-    // bounce may have left on the URL, so redirectUrl below always starts
-    // clean instead of compounding across redirects.
+    // Strip any leftover query params a previous sign-in bounce may have
+    // left on the URL, so redirectUrl below always starts clean.
     if (window.location.search) {
       window.history.replaceState(null, '', window.location.pathname);
     }
@@ -40,19 +43,16 @@ export function AuthGate({ children }: AuthGateProps) {
         return;
       }
 
-      // getProjectUserDetails() is the authoritative check — isUserAuthenticated()
-      // has produced false negatives even when this succeeds, which caused a
-      // sign-in redirect loop (see AuthGate history). Don't use it.
-      //
-      // Right after a signIn() redirect lands back here, the app-domain
-      // session cookie can take a moment to actually be usable, so a single
-      // immediate check can false-negative. Retry a few times with a short
-      // delay before concluding "signed out" — much cheaper than another
-      // full signIn() redirect round-trip.
-      const attempts = [0, 1000, 2000, 3000, 4000];
-      for (let i = 0; i < attempts.length; i++) {
-        if (attempts[i] > 0) {
-          await new Promise((resolve) => setTimeout(resolve, attempts[i]));
+      // Only worth retrying if we just came back from a signIn() redirect —
+      // the app-domain session cookie can take a moment to become usable
+      // right after that. A first-ever check has nothing to wait for, so
+      // fail fast instead of stalling every fresh visitor for ~10s.
+      const justAttemptedSignIn = sessionStorage.getItem(SIGN_IN_ATTEMPTED_KEY);
+      const delays = justAttemptedSignIn ? [0, 1000, 2000] : [0];
+
+      for (let i = 0; i < delays.length; i++) {
+        if (delays[i] > 0) {
+          await sleep(delays[i]);
         }
         if (cancelled) {
           return;
@@ -70,7 +70,7 @@ export function AuthGate({ children }: AuthGateProps) {
             return;
           }
         } catch (err) {
-          if (i === attempts.length - 1 && !cancelled) {
+          if (i === delays.length - 1 && !cancelled) {
             setError(err instanceof Error ? err.message : 'Failed to check sign-in status');
           }
         }
@@ -92,9 +92,8 @@ export function AuthGate({ children }: AuthGateProps) {
     }
 
     // Circuit breaker: if we've already redirected into signIn() once this
-    // session and landed right back on "signed-out" again, stop — something
-    // is wrong (e.g. signIn()'s own internal auth check disagreeing with
-    // ours) and looping forever is worse than showing an error.
+    // session and landed right back on "signed-out" again, stop — looping
+    // forever is worse than showing an error.
     if (sessionStorage.getItem(SIGN_IN_ATTEMPTED_KEY)) {
       setStatus('loop-detected');
       return;
