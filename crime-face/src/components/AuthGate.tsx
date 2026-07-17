@@ -49,7 +49,7 @@ export function AuthGate({ children }: AuthGateProps) {
       // immediate check can false-negative. Retry a few times with a short
       // delay before concluding "signed out" — much cheaper than another
       // full signIn() redirect round-trip.
-      const attempts = [0, 500, 1000];
+      const attempts = [0, 1000, 2000, 3000, 4000];
       for (let i = 0; i < attempts.length; i++) {
         if (attempts[i] > 0) {
           await new Promise((resolve) => setTimeout(resolve, attempts[i]));
@@ -102,11 +102,20 @@ export function AuthGate({ children }: AuthGateProps) {
     sessionStorage.setItem(SIGN_IN_ATTEMPTED_KEY, '1');
 
     const cleanUrl = `${window.location.origin}${window.location.pathname}`;
-    window.catalyst?.auth
-      .signIn(LOGIN_CONTAINER_ID, { redirectUrl: cleanUrl })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Failed to load sign-in');
-      });
+    try {
+      // signIn() doesn't reliably return a Promise in this SDK build (it can
+      // return undefined), so don't chain .catch() on it directly — that
+      // crashed with "Cannot read properties of undefined (reading 'catch')"
+      // and took the React tree down with it.
+      const result = window.catalyst?.auth.signIn(LOGIN_CONTAINER_ID, { redirectUrl: cleanUrl });
+      if (result && typeof (result as Promise<void>).catch === 'function') {
+        (result as Promise<void>).catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : 'Failed to load sign-in');
+        });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load sign-in');
+    }
   }, [status]);
 
   const signOut = () => {
