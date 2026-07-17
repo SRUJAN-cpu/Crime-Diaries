@@ -13,7 +13,10 @@ interface AuthGateProps {
 
 const LOGIN_CONTAINER_ID = 'catalyst-login-container';
 
-type Status = 'checking' | 'signed-out' | 'signed-in' | 'sdk-unavailable';
+// 'checking' until the first auth check resolves. After that, whether we're
+// signed in is entirely determined by `user` — there's no separate
+// "signed-in but no user yet" state to accidentally get stuck in.
+type Status = 'checking' | 'signed-out' | 'sdk-unavailable';
 
 export function AuthGate({ children }: AuthGateProps) {
   const [status, setStatus] = useState<Status>('checking');
@@ -45,7 +48,6 @@ export function AuthGate({ children }: AuthGateProps) {
         }
         if (response.status === 200) {
           setUser(response.data as unknown as CurrentUser);
-          setStatus('signed-in');
           return;
         }
       } catch (err) {
@@ -91,6 +93,10 @@ export function AuthGate({ children }: AuthGateProps) {
     window.catalyst?.auth.signOut(window.location.origin);
   };
 
+  if (user) {
+    return <>{children(user, signOut)}</>;
+  }
+
   if (status === 'sdk-unavailable') {
     return (
       <div className="auth-status">
@@ -104,21 +110,13 @@ export function AuthGate({ children }: AuthGateProps) {
     return <div className="auth-status">Checking sign-in status...</div>;
   }
 
-  if (status === 'signed-out') {
-    return (
-      <div className="auth-screen">
-        {error && <p className="chat-error">{error}</p>}
-        <button className="new-chat-button" onClick={startSignIn}>
-          Sign in
-        </button>
-        <div id={LOGIN_CONTAINER_ID} className="auth-login-container" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <div className="auth-status">Loading your profile...</div>;
-  }
-
-  return <>{children(user, signOut)}</>;
+  return (
+    <div className="auth-screen">
+      {error && <p className="chat-error">{error}</p>}
+      <button className="new-chat-button" onClick={startSignIn}>
+        Sign in
+      </button>
+      <div id={LOGIN_CONTAINER_ID} className="auth-login-container" />
+    </div>
+  );
 }
