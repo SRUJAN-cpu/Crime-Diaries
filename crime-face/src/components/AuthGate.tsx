@@ -12,13 +12,8 @@ interface AuthGateProps {
 }
 
 const LOGIN_CONTAINER_ID = 'catalyst-login-container';
-const SIGN_IN_ATTEMPTED_KEY = 'catalyst-sign-in-attempted';
 
-type Status = 'checking' | 'signed-out' | 'signed-in' | 'sdk-unavailable' | 'loop-detected';
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+type Status = 'checking' | 'signed-out' | 'signed-in' | 'sdk-unavailable';
 
 export function AuthGate({ children }: AuthGateProps) {
   const [status, setStatus] = useState<Status>('checking');
@@ -29,7 +24,7 @@ export function AuthGate({ children }: AuthGateProps) {
     let cancelled = false;
 
     // Strip any leftover query params a previous sign-in bounce may have
-    // left on the URL, so redirectUrl below always starts clean.
+    // left on the URL.
     if (window.location.search) {
       window.history.replaceState(null, '', window.location.pathname);
     }
@@ -43,36 +38,19 @@ export function AuthGate({ children }: AuthGateProps) {
         return;
       }
 
-      // Only worth retrying if we just came back from a signIn() redirect —
-      // the app-domain session cookie can take a moment to become usable
-      // right after that. A first-ever check has nothing to wait for, so
-      // fail fast instead of stalling every fresh visitor for ~10s.
-      const justAttemptedSignIn = sessionStorage.getItem(SIGN_IN_ATTEMPTED_KEY);
-      const delays = justAttemptedSignIn ? [0, 1000, 2000] : [0];
-
-      for (let i = 0; i < delays.length; i++) {
-        if (delays[i] > 0) {
-          await sleep(delays[i]);
-        }
+      try {
+        const response = await auth.getProjectUserDetails();
         if (cancelled) {
           return;
         }
-
-        try {
-          const response = await auth.getProjectUserDetails();
-          if (cancelled) {
-            return;
-          }
-          if (response.status === 'success') {
-            sessionStorage.removeItem(SIGN_IN_ATTEMPTED_KEY);
-            setUser(response.data as unknown as CurrentUser);
-            setStatus('signed-in');
-            return;
-          }
-        } catch (err) {
-          if (i === delays.length - 1 && !cancelled) {
-            setError(err instanceof Error ? err.message : 'Failed to check sign-in status');
-          }
+        if (response.status === 'success') {
+          setUser(response.data as unknown as CurrentUser);
+          setStatus('signed-in');
+          return;
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to check sign-in status');
         }
       }
 
@@ -86,26 +64,18 @@ export function AuthGate({ children }: AuthGateProps) {
     };
   }, []);
 
-  useEffect(() => {
-    if (status !== 'signed-out') {
-      return;
-    }
-
-    // Circuit breaker: if we've already redirected into signIn() once this
-    // session and landed right back on "signed-out" again, stop — looping
-    // forever is worse than showing an error.
-    if (sessionStorage.getItem(SIGN_IN_ATTEMPTED_KEY)) {
-      setStatus('loop-detected');
-      return;
-    }
-    sessionStorage.setItem(SIGN_IN_ATTEMPTED_KEY, '1');
-
+  // No effect auto-triggers signIn() here on purpose. signIn() will redirect
+  // the whole page if it thinks you're already signed in — doing that
+  // automatically from an effect is what caused the earlier redirect loop.
+  // Making it a manual click means the worst case is one redirect, not an
+  // automatic cycle.
+  const startSignIn = () => {
+    setError(null);
     const cleanUrl = `${window.location.origin}${window.location.pathname}`;
     try {
       // signIn() doesn't reliably return a Promise in this SDK build (it can
       // return undefined), so don't chain .catch() on it directly — that
-      // crashed with "Cannot read properties of undefined (reading 'catch')"
-      // and took the React tree down with it.
+      // crashed with "Cannot read properties of undefined (reading 'catch')".
       const result = window.catalyst?.auth.signIn(LOGIN_CONTAINER_ID, { redirectUrl: cleanUrl });
       if (result && typeof (result as Promise<void>).catch === 'function') {
         (result as Promise<void>).catch((err: unknown) => {
@@ -115,18 +85,10 @@ export function AuthGate({ children }: AuthGateProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load sign-in');
     }
-  }, [status]);
-
-  const signOut = () => {
-    sessionStorage.removeItem(SIGN_IN_ATTEMPTED_KEY);
-    window.catalyst?.auth.signOut(window.location.origin);
   };
 
-  const retry = () => {
-    sessionStorage.removeItem(SIGN_IN_ATTEMPTED_KEY);
-    setError(null);
-    setStatus('checking');
-    window.location.reload();
+  const signOut = () => {
+    window.catalyst?.auth.signOut(window.location.origin);
   };
 
   if (status === 'sdk-unavailable') {
@@ -134,20 +96,6 @@ export function AuthGate({ children }: AuthGateProps) {
       <div className="auth-status">
         Catalyst SDK not found — this app needs to be served through Catalyst (catalyst serve, or
         deployed) for sign-in to work.
-      </div>
-    );
-  }
-
-  if (status === 'loop-detected') {
-    return (
-      <div className="auth-screen">
-        <p className="chat-error">
-          Sign-in got stuck in a redirect loop. This has been stopped automatically — click below
-          to try again.
-        </p>
-        <button className="new-chat-button" onClick={retry}>
-          Try again
-        </button>
       </div>
     );
   }
@@ -160,6 +108,9 @@ export function AuthGate({ children }: AuthGateProps) {
     return (
       <div className="auth-screen">
         {error && <p className="chat-error">{error}</p>}
+        <button className="new-chat-button" onClick={startSignIn}>
+          Sign in
+        </button>
         <div id={LOGIN_CONTAINER_ID} className="auth-login-container" />
       </div>
     );
