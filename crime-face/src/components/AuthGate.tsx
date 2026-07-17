@@ -40,27 +40,44 @@ export function AuthGate({ children }: AuthGateProps) {
         return;
       }
 
-      try {
-        // getProjectUserDetails() is the authoritative check — isUserAuthenticated()
-        // has produced false negatives even when this succeeds, which caused a
-        // sign-in redirect loop (see AuthGate history). Don't use it.
-        const response = await auth.getProjectUserDetails();
+      // getProjectUserDetails() is the authoritative check — isUserAuthenticated()
+      // has produced false negatives even when this succeeds, which caused a
+      // sign-in redirect loop (see AuthGate history). Don't use it.
+      //
+      // Right after a signIn() redirect lands back here, the app-domain
+      // session cookie can take a moment to actually be usable, so a single
+      // immediate check can false-negative. Retry a few times with a short
+      // delay before concluding "signed out" — much cheaper than another
+      // full signIn() redirect round-trip.
+      const attempts = [0, 500, 1000];
+      for (let i = 0; i < attempts.length; i++) {
+        if (attempts[i] > 0) {
+          await new Promise((resolve) => setTimeout(resolve, attempts[i]));
+        }
         if (cancelled) {
           return;
         }
-        if (response.status === 'success') {
-          sessionStorage.removeItem(SIGN_IN_ATTEMPTED_KEY);
-          setUser(response.data as unknown as CurrentUser);
-          setStatus('signed-in');
-          return;
-        }
 
-        setStatus('signed-out');
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to check sign-in status');
-          setStatus('signed-out');
+        try {
+          const response = await auth.getProjectUserDetails();
+          if (cancelled) {
+            return;
+          }
+          if (response.status === 'success') {
+            sessionStorage.removeItem(SIGN_IN_ATTEMPTED_KEY);
+            setUser(response.data as unknown as CurrentUser);
+            setStatus('signed-in');
+            return;
+          }
+        } catch (err) {
+          if (i === attempts.length - 1 && !cancelled) {
+            setError(err instanceof Error ? err.message : 'Failed to check sign-in status');
+          }
         }
+      }
+
+      if (!cancelled) {
+        setStatus('signed-out');
       }
     })();
 
