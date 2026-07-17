@@ -23,6 +23,13 @@ export function AuthGate({ children }: AuthGateProps) {
   useEffect(() => {
     let cancelled = false;
 
+    // Strip any PROJECT_ID/service_url query params a previous sign-in
+    // bounce may have left on the URL, so redirectUrl below always starts
+    // clean instead of compounding across redirects.
+    if (window.location.search) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+
     (async () => {
       const auth = window.catalyst?.auth;
       if (!auth) {
@@ -69,8 +76,9 @@ export function AuthGate({ children }: AuthGateProps) {
     if (status !== 'signed-out') {
       return;
     }
+    const cleanUrl = `${window.location.origin}${window.location.pathname}`;
     window.catalyst?.auth
-      .signIn(LOGIN_CONTAINER_ID, { redirectUrl: window.location.href })
+      .signIn(LOGIN_CONTAINER_ID, { redirectUrl: cleanUrl })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : 'Failed to load sign-in');
       });
