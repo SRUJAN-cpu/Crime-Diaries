@@ -14,17 +14,19 @@ export interface CatalystSignInConfig {
 
 // The SDK's wrapResponse() unwraps the raw server body ({status: "success"|
 // "failure", data: {...}}) and re-wraps it as {status: <HTTP status code
-// NUMBER>, data: <the inner data object>} — the "success"/"failure" string
-// only exists in the raw response body, not in what this method resolves to.
+// NUMBER>, content: <the inner data object>, message: <text>} — confirmed by
+// logging the actual resolved object. Neither the "success"/"failure" string
+// nor the "data" key survive that unwrapping.
 export interface CatalystProjectUserResponse {
   status: number;
-  data: {
+  content: {
     user_id: string;
     email_id: string;
     first_name: string;
     last_name: string;
     [key: string]: unknown;
   };
+  message?: string;
 }
 
 export interface CatalystAuth {
