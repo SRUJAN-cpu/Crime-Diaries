@@ -4,7 +4,7 @@
 		"stack": "node24",
 		"type": "advancedio",
 		"env_variables": {
-			"CATALYST_ORG": "60073147848",
+			"ZC_ORG_ID": "60073147848",
 			"LLM_API_URL": "https://api.catalyst.zoho.in/quickml/v1/project/43199000000021001/vlm/chat",
 			"LLM_API_KEY": "",
 			"RAG_API_URL": "https://console.catalyst.zoho.in/quickml/v1/project/43199000000021001/rag/answer",

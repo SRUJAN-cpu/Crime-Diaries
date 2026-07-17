@@ -20,8 +20,10 @@ module.exports = {
 	// or as Environment Variables on the function in the Catalyst console.
 
 	// Shared Catalyst project identifier required as the CATALYST-ORG header
-	// on both the QuickML and RAG API calls below.
-	catalystOrgEnvVar: 'CATALYST_ORG',
+	// on both the QuickML and RAG API calls below. Named without a "CATALYST_"
+	// prefix because Catalyst rejects function env vars with reserved keywords
+	// (CATALYST_ORG itself is rejected at deploy time).
+	catalystOrgEnvVar: 'ZC_ORG_ID',
 
 	llm: {
 		// Catalyst QuickML VLM chat endpoint: single-shot { prompt, model, ... },

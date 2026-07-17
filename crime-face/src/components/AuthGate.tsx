@@ -1,5 +1,4 @@
 import { ReactNode, useEffect, useState } from 'react';
-import { UserManagement, zcAuth } from '@zcatalyst/auth/web';
 
 export interface CurrentUser {
   user_id: string;
@@ -14,7 +13,7 @@ interface AuthGateProps {
 
 const LOGIN_CONTAINER_ID = 'catalyst-login-container';
 
-type Status = 'checking' | 'signed-out' | 'signed-in';
+type Status = 'checking' | 'signed-out' | 'signed-in' | 'sdk-unavailable';
 
 export function AuthGate({ children }: AuthGateProps) {
   const [status, setStatus] = useState<Status>('checking');
@@ -25,21 +24,33 @@ export function AuthGate({ children }: AuthGateProps) {
     let cancelled = false;
 
     (async () => {
+      const auth = window.catalyst?.auth;
+      if (!auth) {
+        if (!cancelled) {
+          setStatus('sdk-unavailable');
+        }
+        return;
+      }
+
       try {
-        const authResult = await zcAuth.isUserAuthenticated();
+        const isAuthenticated = await auth.isUserAuthenticated();
         if (cancelled) {
           return;
         }
-        if (!authResult) {
+        if (!isAuthenticated) {
           setStatus('signed-out');
           return;
         }
 
-        const currentUser = await new UserManagement().getCurrentUser();
+        const response = await auth.getProjectUserDetails();
         if (cancelled) {
           return;
         }
-        setUser(currentUser as unknown as CurrentUser);
+        if (response.status !== 'success') {
+          setStatus('signed-out');
+          return;
+        }
+        setUser(response.data as unknown as CurrentUser);
         setStatus('signed-in');
       } catch (err) {
         if (!cancelled) {
@@ -58,14 +69,25 @@ export function AuthGate({ children }: AuthGateProps) {
     if (status !== 'signed-out') {
       return;
     }
-    zcAuth.signIn(LOGIN_CONTAINER_ID, { redirectUrl: window.location.href }).catch((err) => {
-      setError(err instanceof Error ? err.message : 'Failed to load sign-in');
-    });
+    window.catalyst?.auth
+      .signIn(LOGIN_CONTAINER_ID, { redirectUrl: window.location.href })
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : 'Failed to load sign-in');
+      });
   }, [status]);
 
   const signOut = () => {
-    zcAuth.signOut(window.location.origin);
+    window.catalyst?.auth.signOut(window.location.origin);
   };
+
+  if (status === 'sdk-unavailable') {
+    return (
+      <div className="auth-status">
+        Catalyst SDK not found — this app needs to be served through Catalyst (catalyst serve, or
+        deployed) for sign-in to work.
+      </div>
+    );
+  }
 
   if (status === 'checking') {
     return <div className="auth-status">Checking sign-in status...</div>;
