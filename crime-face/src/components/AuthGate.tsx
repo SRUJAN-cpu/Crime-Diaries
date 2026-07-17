@@ -42,7 +42,14 @@ export function AuthGate({ children }: AuthGateProps) {
       }
 
       try {
-        const response = await auth.getProjectUserDetails();
+        // Never hang on "Checking..." forever if the SDK call itself never
+        // settles — bail to the sign-in screen after a timeout instead.
+        const response = await Promise.race([
+          auth.getProjectUserDetails(),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Timed out checking sign-in status')), 6000)
+          )
+        ]);
         if (cancelled) {
           return;
         }
