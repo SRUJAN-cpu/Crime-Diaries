@@ -57,7 +57,8 @@ module.exports = {
 			model: 'VL-Qwen3.6-35B-A3B'
 		},
 		glm: {
-			urlEnvVar: 'GLM_API_URL'
+			urlEnvVar: 'GLM_API_URL',
+			model: 'crm-di-glm47b_30b_it'
 			// TODO: set a `model` here too if the glm/chat endpoint turns out
 			// to require one, the way vlm/chat does — find out by testing.
 		}
