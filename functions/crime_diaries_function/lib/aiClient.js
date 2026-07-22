@@ -27,13 +27,18 @@ function requireEnv(name) {
 }
 
 /**
- * Calls Zoho Catalyst's QuickML VLM chat endpoint for greetings/small-talk
- * that don't need crime data retrieval. Unlike a running messages list, this
- * API takes a single-shot prompt, so we just send the latest user turn.
- * @param {{ messages: Array<{role: string, content: string}> }} params
+ * Calls Zoho Catalyst's QuickML chat endpoints for greetings/small-talk that
+ * don't need crime data retrieval. Routes to vlm/chat (image-capable, and
+ * confirmed to require at least one image) when images are attached, or
+ * glm/chat (text-only) otherwise. Unlike a running messages list, these APIs
+ * take a single-shot prompt, so we just send the latest user turn.
+ * @param {{ messages: Array<{role: string, content: string}>, images?: Array<string> }} params
  */
-async function getLlmResponse({ messages }) {
-	const apiUrl = requireEnv(config.llm.urlEnvVar);
+async function getLlmResponse({ messages, images }) {
+	const hasImages = Array.isArray(images) && images.length > 0;
+	const endpoint = hasImages ? config.llm.vlm : config.llm.glm;
+
+	const apiUrl = requireEnv(endpoint.urlEnvVar);
 	const org = requireEnv(config.catalystOrgEnvVar);
 	const accessToken = await zohoOAuth.getAccessToken();
 
@@ -48,10 +53,8 @@ async function getLlmResponse({ messages }) {
 		},
 		body: JSON.stringify({
 			prompt,
-			model: config.llm.model,
-			// Omit `images` entirely for text-only chat — sending an empty
-			// array made the model treat it as "an image was expected but is
-			// invalid", failing with "Problem in the input image".
+			...(endpoint.model ? { model: endpoint.model } : {}),
+			...(hasImages ? { images } : {}),
 			system_prompt: config.llm.systemPrompt,
 			...config.llm.defaultParams
 		})

@@ -39,10 +39,11 @@ module.exports = {
 	},
 
 	llm: {
-		// Catalyst QuickML VLM chat endpoint: single-shot { prompt, model, ... },
-		// not a running messages list. See lib/aiClient.js#getLlmResponse.
-		urlEnvVar: 'LLM_API_URL',
-		model: 'VL-Qwen3.6-35B-A3B',
+		// Two separate QuickML chat endpoints: vlm/chat requires at least one
+		// image (confirmed by hitting its own validation errors) and glm/chat
+		// is the text-only counterpart. Route based on whether the message
+		// has images attached. Both take a single-shot { prompt, ... }, not a
+		// running messages list. See lib/aiClient.js#getLlmResponse.
 		systemPrompt:
 			'You are a friendly assistant for the Crime Diaries chat app. Respond briefly and naturally to greetings and small talk.',
 		defaultParams: {
@@ -50,6 +51,15 @@ module.exports = {
 			top_p: 0.9,
 			temperature: 0.7,
 			max_tokens: 500
+		},
+		vlm: {
+			urlEnvVar: 'VLM_API_URL',
+			model: 'VL-Qwen3.6-35B-A3B'
+		},
+		glm: {
+			urlEnvVar: 'GLM_API_URL'
+			// TODO: set a `model` here too if the glm/chat endpoint turns out
+			// to require one, the way vlm/chat does — find out by testing.
 		}
 	},
 	rag: {

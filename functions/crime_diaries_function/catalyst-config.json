@@ -5,11 +5,12 @@
 		"type": "advancedio",
 		"env_variables": {
 			"ZC_ORG_ID": "60073147848",
-			"LLM_API_URL": "https://api.catalyst.zoho.in/quickml/v1/project/43199000000021001/vlm/chat",
+			"VLM_API_URL": "https://api.catalyst.zoho.in/quickml/v1/project/43199000000021001/vlm/chat",
+			"GLM_API_URL": "https://api.catalyst.zoho.in/quickml/v1/project/43199000000021001/glm/chat",
 			"RAG_API_URL": "https://console.catalyst.zoho.in/quickml/v1/project/43199000000021001/rag/answer",
 			"RAG_DOCUMENT_IDS": "3118000000003006, 3118000000003002, 3118000000002056, 3118000000003043, 3118000000002044, 3118000000002040, 3118000000002048, 3118000000002051, 3118000000003032, 3118000000003036",
-			"ZOHO_CLIENT_ID": "",
-			"ZOHO_CLIENT_SECRET": "",
+			"ZOHO_CLIENT_ID": "1000.1SH1QC8MT9H3OVQWIZ9LPX3XFBA9KE",
+			"ZOHO_CLIENT_SECRET": "153cbfe334b3d96ae64057149e086eede03546ffec",
 			"ZOHO_REFRESH_TOKEN": ""
 		}
 	},
