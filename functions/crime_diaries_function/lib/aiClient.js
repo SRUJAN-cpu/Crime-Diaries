@@ -49,7 +49,9 @@ async function getLlmResponse({ messages }) {
 		body: JSON.stringify({
 			prompt,
 			model: config.llm.model,
-			images: [],
+			// Omit `images` entirely for text-only chat — sending an empty
+			// array made the model treat it as "an image was expected but is
+			// invalid", failing with "Problem in the input image".
 			system_prompt: config.llm.systemPrompt,
 			...config.llm.defaultParams
 		})
