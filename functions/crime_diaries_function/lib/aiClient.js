@@ -49,11 +49,11 @@ async function getLlmResponse({ messages, images }) {
 	const body = JSON.stringify({
 		prompt,
 		...(endpoint.model ? { model: endpoint.model } : {}),
-		...(hasImages ? { images } : {}),
+		images: imageArray, // Always include images array (empty for GLM, actual for VLM)
 		system_prompt: config.llm.systemPrompt,
 		...config.llm.defaultParams
 	});
-	console.log('[LLM DEBUG] Request body keys:', Object.keys(JSON.parse(body)));
+	console.log('[LLM DEBUG] Request body:', body);
 	const response = await fetch(apiUrl, {
 		method: 'POST',
 		headers: {
