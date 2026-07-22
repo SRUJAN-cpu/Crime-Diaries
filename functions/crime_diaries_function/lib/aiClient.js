@@ -35,9 +35,9 @@ function requireEnv(name) {
  * @param {{ messages: Array<{role: string, content: string}>, images?: Array<string> }} params
  */
 async function getLlmResponse({ messages, images }) {
-	console.log('[LLM DEBUG] images received:', images);
-	const hasImages = Array.isArray(images) && images.length > 0;
-	console.log('[LLM DEBUG] hasImages:', hasImages);
+	// Normalize images to an array (defaults to empty array if not provided or not an array)
+	const imageArray = Array.isArray(images) ? images : [];
+	const hasImages = imageArray.length > 0;
 	const endpoint = hasImages ? config.llm.vlm : config.llm.glm;
 
 	const apiUrl = requireEnv(endpoint.urlEnvVar);
@@ -53,7 +53,6 @@ async function getLlmResponse({ messages, images }) {
 		system_prompt: config.llm.systemPrompt,
 		...config.llm.defaultParams
 	});
-	console.log('[LLM DEBUG] Request body:', body);
 	const response = await fetch(apiUrl, {
 		method: 'POST',
 		headers: {
