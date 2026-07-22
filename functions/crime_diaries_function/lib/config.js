@@ -25,11 +25,24 @@ module.exports = {
 	// (CATALYST_ORG itself is rejected at deploy time).
 	catalystOrgEnvVar: 'ZC_ORG_ID',
 
+	// Both the LLM and RAG endpoints need a Zoho OAuth access token (scope
+	// QuickML.deployment.READ), which expires in ~1hr. Rather than pasting a
+	// short-lived token into an env var, we keep the long-lived client
+	// credentials + refresh token and mint access tokens on demand — see
+	// lib/zohoOAuth.js.
+	zoho: {
+		tokenUrl: 'https://accounts.zoho.in/oauth/v2/token',
+		clientIdEnvVar: 'ZOHO_CLIENT_ID',
+		clientSecretEnvVar: 'ZOHO_CLIENT_SECRET',
+		refreshTokenEnvVar: 'ZOHO_REFRESH_TOKEN',
+		// Refresh this many seconds early so a token doesn't die mid-request.
+		expiryBufferSeconds: 60
+	},
+
 	llm: {
 		// Catalyst QuickML VLM chat endpoint: single-shot { prompt, model, ... },
 		// not a running messages list. See lib/aiClient.js#getLlmResponse.
 		urlEnvVar: 'LLM_API_URL',
-		apiKeyEnvVar: 'LLM_API_KEY',
 		model: 'VL-Qwen3.6-35B-A3B',
 		systemPrompt:
 			'You are a friendly assistant for the Crime Diaries chat app. Respond briefly and naturally to greetings and small talk.',
@@ -45,7 +58,6 @@ module.exports = {
 		// a fixed set of indexed document ids (there's no per-message concept of
 		// "which documents" so this list is static). See lib/aiClient.js#getRagResponse.
 		urlEnvVar: 'RAG_API_URL',
-		apiKeyEnvVar: 'RAG_API_KEY',
 		documentIdsEnvVar: 'RAG_DOCUMENT_IDS'
 	}
 };

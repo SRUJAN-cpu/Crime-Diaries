@@ -1,6 +1,7 @@
 'use strict';
 
 const config = require('./config');
+const zohoOAuth = require('./zohoOAuth');
 
 function extractAnswer(data) {
 	// TODO: confirm the actual response field once you've hit these live.
@@ -33,8 +34,8 @@ function requireEnv(name) {
  */
 async function getLlmResponse({ messages }) {
 	const apiUrl = requireEnv(config.llm.urlEnvVar);
-	const apiKey = requireEnv(config.llm.apiKeyEnvVar);
 	const org = requireEnv(config.catalystOrgEnvVar);
+	const accessToken = await zohoOAuth.getAccessToken();
 
 	const prompt = messages[messages.length - 1]?.content ?? '';
 
@@ -42,7 +43,7 @@ async function getLlmResponse({ messages }) {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			Authorization: `Bearer ${apiKey}`,
+			Authorization: `Bearer ${accessToken}`,
 			'CATALYST-ORG': org
 		},
 		body: JSON.stringify({
@@ -72,14 +73,12 @@ async function getLlmResponse({ messages }) {
  * Calls Zoho Catalyst's RAG answer endpoint for crime-data questions. Like the
  * LLM endpoint, this takes a single-shot query rather than a message list, plus
  * a fixed set of indexed document ids to search (RAG_DOCUMENT_IDS, comma-separated).
- * Auth here uses a Zoho OAuth access token, not a plain bearer key — note that
- * token expires and will need refreshing periodically.
  * @param {{ messages: Array<{role: string, content: string}> }} params
  */
 async function getRagResponse({ messages }) {
 	const apiUrl = requireEnv(config.rag.urlEnvVar);
-	const accessToken = requireEnv(config.rag.apiKeyEnvVar);
 	const org = requireEnv(config.catalystOrgEnvVar);
+	const accessToken = await zohoOAuth.getAccessToken();
 
 	const documents = (process.env[config.rag.documentIdsEnvVar] || '')
 		.split(',')

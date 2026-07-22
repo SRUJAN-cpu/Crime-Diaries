@@ -5,6 +5,13 @@ const config = require('./config');
 
 const { NoSQLOperator, NoSQLUpdateOperationType } = NoSQLEnum;
 
+// NoSQLItem.from() throws on any top-level undefined field, regardless of the
+// removeUndefinedValues option (that option only covers values nested inside
+// a map/array/set, per zcatalyst-sdk-node's marshall.js). Strip them ourselves.
+function withoutUndefined(obj) {
+	return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined));
+}
+
 /**
  * Creates the user's profile row on their first message, or bumps last_active_time
  * on every subsequent message.
@@ -34,14 +41,16 @@ async function ensureUserRecord(catalystApp, catalystUser) {
 	}
 
 	await table.insertItems({
-		item: NoSQLItem.from({
-			catalyst_user_id: catalystUser.user_id,
-			email: catalystUser.email_id,
-			first_name: catalystUser.first_name,
-			last_name: catalystUser.last_name,
-			created_time: now,
-			last_active_time: now
-		})
+		item: NoSQLItem.from(
+			withoutUndefined({
+				catalyst_user_id: catalystUser.user_id,
+				email: catalystUser.email_id,
+				first_name: catalystUser.first_name,
+				last_name: catalystUser.last_name,
+				created_time: now,
+				last_active_time: now
+			})
+		)
 	});
 }
 
@@ -57,14 +66,16 @@ async function saveMessage(catalystApp, { catalystUserId, sessionId, role, conte
 	const createdAt = createdTime ?? Date.now();
 
 	await table.insertItems({
-		item: NoSQLItem.from({
-			catalyst_user_id: catalystUserId,
-			created_time: createdAt,
-			session_id: sessionId,
-			role,
-			content,
-			...(source ? { source } : {})
-		})
+		item: NoSQLItem.from(
+			withoutUndefined({
+				catalyst_user_id: catalystUserId,
+				created_time: createdAt,
+				session_id: sessionId,
+				role,
+				content,
+				source
+			})
+		)
 	});
 
 	return createdAt;
