@@ -1,6 +1,7 @@
 'use strict';
 
 const config = require('./config');
+const zohoOAuth = require('./zohoOAuth');
 
 function extractAnswer(data) {
 	// TODO: confirm the actual response field once you've hit these live.
@@ -26,32 +27,41 @@ function requireEnv(name) {
 }
 
 /**
- * Calls Zoho Catalyst's QuickML VLM chat endpoint for greetings/small-talk
- * that don't need crime data retrieval. Unlike a running messages list, this
- * API takes a single-shot prompt, so we just send the latest user turn.
- * @param {{ messages: Array<{role: string, content: string}> }} params
+ * Calls Zoho Catalyst's QuickML chat endpoints for greetings/small-talk that
+ * don't need crime data retrieval. Routes to vlm/chat (image-capable, and
+ * confirmed to require at least one image) when images are attached, or
+ * glm/chat (text-only) otherwise. Unlike a running messages list, these APIs
+ * take a single-shot prompt, so we just send the latest user turn.
+ * @param {{ messages: Array<{role: string, content: string}>, images?: Array<string> }} params
  */
-async function getLlmResponse({ messages }) {
-	const apiUrl = requireEnv(config.llm.urlEnvVar);
-	const apiKey = requireEnv(config.llm.apiKeyEnvVar);
+async function getLlmResponse({ messages, images }) {
+	console.log('[LLM DEBUG] images received:', images);
+	const hasImages = Array.isArray(images) && images.length > 0;
+	console.log('[LLM DEBUG] hasImages:', hasImages);
+	const endpoint = hasImages ? config.llm.vlm : config.llm.glm;
+
+	const apiUrl = requireEnv(endpoint.urlEnvVar);
 	const org = requireEnv(config.catalystOrgEnvVar);
+	const accessToken = await zohoOAuth.getAccessToken();
 
 	const prompt = messages[messages.length - 1]?.content ?? '';
 
+	const body = JSON.stringify({
+		prompt,
+		...(endpoint.model ? { model: endpoint.model } : {}),
+		...(hasImages ? { images } : {}),
+		system_prompt: config.llm.systemPrompt,
+		...config.llm.defaultParams
+	});
+	console.log('[LLM DEBUG] Request body keys:', Object.keys(JSON.parse(body)));
 	const response = await fetch(apiUrl, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
-			Authorization: `Bearer ${apiKey}`,
+			Authorization: `Bearer ${accessToken}`,
 			'CATALYST-ORG': org
 		},
-		body: JSON.stringify({
-			prompt,
-			model: config.llm.model,
-			images: [],
-			system_prompt: config.llm.systemPrompt,
-			...config.llm.defaultParams
-		})
+		body
 	});
 
 	if (!response.ok) {
@@ -72,14 +82,12 @@ async function getLlmResponse({ messages }) {
  * Calls Zoho Catalyst's RAG answer endpoint for crime-data questions. Like the
  * LLM endpoint, this takes a single-shot query rather than a message list, plus
  * a fixed set of indexed document ids to search (RAG_DOCUMENT_IDS, comma-separated).
- * Auth here uses a Zoho OAuth access token, not a plain bearer key — note that
- * token expires and will need refreshing periodically.
  * @param {{ messages: Array<{role: string, content: string}> }} params
  */
 async function getRagResponse({ messages }) {
 	const apiUrl = requireEnv(config.rag.urlEnvVar);
-	const accessToken = requireEnv(config.rag.apiKeyEnvVar);
 	const org = requireEnv(config.catalystOrgEnvVar);
+	const accessToken = await zohoOAuth.getAccessToken();
 
 	const documents = (process.env[config.rag.documentIdsEnvVar] || '')
 		.split(',')

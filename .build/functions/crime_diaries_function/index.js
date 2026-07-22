@@ -16,11 +16,12 @@ app.use(express.json());
 // omit it to start a new one.
 app.post('/chat', async (req, res) => {
 	try {
-		const { message, session_id: sessionIdFromClient } = req.body || {};
+		const { message, session_id: sessionIdFromClient, images } = req.body || {};
 		if (!message || typeof message !== 'string' || !message.trim()) {
 			res.status(400).json({ error: 'message is required' });
 			return;
 		}
+		const hasImages = Array.isArray(images) && images.length > 0;
 
 		const catalystApp = catalyst.initialize(req);
 		const catalystUser = await catalystApp.userManagement().getCurrentUser();
@@ -37,11 +38,14 @@ app.post('/chat', async (req, res) => {
 
 		await addUserMessage(catalystApp, messages, { catalystUserId, sessionId, content: message });
 
-		const route = classifyMessage(message);
+		// An attached image always goes to the vision model — RAG/GLM have no
+		// concept of images, so the text-based crime-keyword classifier only
+		// applies when there isn't one.
+		const route = hasImages ? ROUTES.LLM : classifyMessage(message);
 		const { answer } =
 			route === ROUTES.RAG
 				? await getRagResponse({ messages, sessionId })
-				: await getLlmResponse({ messages, sessionId });
+				: await getLlmResponse({ messages, sessionId, images });
 
 		await addAssistantMessage(catalystApp, messages, {
 			catalystUserId,

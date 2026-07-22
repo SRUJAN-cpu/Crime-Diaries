@@ -35,7 +35,9 @@ function requireEnv(name) {
  * @param {{ messages: Array<{role: string, content: string}>, images?: Array<string> }} params
  */
 async function getLlmResponse({ messages, images }) {
+	console.log('[LLM DEBUG] images received:', images);
 	const hasImages = Array.isArray(images) && images.length > 0;
+	console.log('[LLM DEBUG] hasImages:', hasImages);
 	const endpoint = hasImages ? config.llm.vlm : config.llm.glm;
 
 	const apiUrl = requireEnv(endpoint.urlEnvVar);
@@ -44,6 +46,14 @@ async function getLlmResponse({ messages, images }) {
 
 	const prompt = messages[messages.length - 1]?.content ?? '';
 
+	const body = JSON.stringify({
+		prompt,
+		...(endpoint.model ? { model: endpoint.model } : {}),
+		...(hasImages ? { images } : {}),
+		system_prompt: config.llm.systemPrompt,
+		...config.llm.defaultParams
+	});
+	console.log('[LLM DEBUG] Request body keys:', Object.keys(JSON.parse(body)));
 	const response = await fetch(apiUrl, {
 		method: 'POST',
 		headers: {
@@ -51,13 +61,7 @@ async function getLlmResponse({ messages, images }) {
 			Authorization: `Bearer ${accessToken}`,
 			'CATALYST-ORG': org
 		},
-		body: JSON.stringify({
-			prompt,
-			...(endpoint.model ? { model: endpoint.model } : {}),
-			...(hasImages ? { images } : {}),
-			system_prompt: config.llm.systemPrompt,
-			...config.llm.defaultParams
-		})
+		body
 	});
 
 	if (!response.ok) {
