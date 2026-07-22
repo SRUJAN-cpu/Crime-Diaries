@@ -49,7 +49,11 @@ async function getLlmResponse({ messages, images }) {
 	const body = JSON.stringify({
 		prompt,
 		...(endpoint.model ? { model: endpoint.model } : {}),
-		images: imageArray, // Always include images array (empty for GLM, actual for VLM)
+		// Only include `images` when there actually are some — sending it
+		// empty (even []) makes the gateway try to validate a "zoho-inputstream"
+		// that isn't there, failing with LESS_THAN_MIN_OCCURANCE. Confirmed on
+		// both vlm/chat (as "Problem in the input image") and glm/chat.
+		...(hasImages ? { images: imageArray } : {}),
 		system_prompt: config.llm.systemPrompt,
 		...config.llm.defaultParams
 	});
