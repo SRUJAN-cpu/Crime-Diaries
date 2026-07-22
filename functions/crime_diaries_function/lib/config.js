@@ -38,29 +38,34 @@ module.exports = {
 		expiryBufferSeconds: 60
 	},
 
+	// Two separate QuickML chat endpoints with genuinely different request
+	// shapes (confirmed via the console's own integration samples) — not just
+	// different models:
+	//   - vlm/chat: single-shot { prompt, model, images, system_prompt, ... }.
+	//     Requires at least one real image; used only when one is attached.
+	//   - glm/chat: OpenAI-Chat-Completions-style { model, messages, ... }.
+	//     Text-only, used for everything else. See lib/aiClient.js.
 	llm: {
-		// Two separate QuickML chat endpoints: vlm/chat requires at least one
-		// image (confirmed by hitting its own validation errors) and glm/chat
-		// is the text-only counterpart. Route based on whether the message
-		// has images attached. Both take a single-shot { prompt, ... }, not a
-		// running messages list. See lib/aiClient.js#getLlmResponse.
 		systemPrompt:
 			'You are a friendly assistant for the Crime Diaries chat app. Respond briefly and naturally to greetings and small talk.',
-		defaultParams: {
-			top_k: 50,
-			top_p: 0.9,
-			temperature: 0.7,
-			max_tokens: 500
-		},
 		vlm: {
 			urlEnvVar: 'VLM_API_URL',
-			model: 'VL-Qwen3.6-35B-A3B'
+			model: 'VL-Qwen3.6-35B-A3B',
+			defaultParams: {
+				top_k: 50,
+				top_p: 0.9,
+				temperature: 0.7,
+				max_tokens: 500
+			}
 		},
 		glm: {
 			urlEnvVar: 'GLM_API_URL',
-			model: 'crm-di-glm47b_30b_it'
-			// TODO: set a `model` here too if the glm/chat endpoint turns out
-			// to require one, the way vlm/chat does — find out by testing.
+			model: 'crm-di-glm47b_30b_it',
+			defaultParams: {
+				temperature: 0.7,
+				max_tokens: 500,
+				stream: false
+			}
 		}
 	},
 	rag: {
