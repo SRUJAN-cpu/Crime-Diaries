@@ -8,12 +8,11 @@ module.exports = {
 			partitionKey: 'catalyst_user_id'
 		},
 		conversation: {
-			// NOTE: this table needs a sort key named `created_time` (Number) in the
-			// Catalyst console, in addition to the `catalyst_user_id` partition key,
-			// so messages come back ordered and multiple messages per user are allowed.
+			// Sort key is `updated_at` (Number) per the actual console schema,
+			// in addition to the `catalyst_user_id` partition key.
 			name: 'conversation',
 			partitionKey: 'catalyst_user_id',
-			sortKey: 'created_time'
+			sortKey: 'updated_at'
 		}
 	},
 	// Set these in functions/crime_diaries_function/catalyst-config.json -> env_variables,

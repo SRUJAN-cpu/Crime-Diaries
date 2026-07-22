@@ -69,7 +69,9 @@ async function saveMessage(catalystApp, { catalystUserId, sessionId, role, conte
 		item: NoSQLItem.from(
 			withoutUndefined({
 				catalyst_user_id: catalystUserId,
-				created_time: createdAt,
+				// updated_at is a String column in the console (not Number) —
+				// ISO-8601 also happens to sort correctly as a plain string.
+				updated_at: new Date(createdAt).toISOString(),
 				session_id: sessionId,
 				role,
 				content,
@@ -137,7 +139,7 @@ async function listSessions(catalystApp, catalystUserId) {
 			last_message: ''
 		};
 		existing.message_count += 1;
-		const createdTime = Number(msg.created_time);
+		const createdTime = new Date(msg.updated_at).getTime();
 		if (createdTime >= existing.last_message_time) {
 			existing.last_message_time = createdTime;
 			existing.last_message = msg.content;

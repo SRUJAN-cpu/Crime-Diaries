@@ -7,7 +7,7 @@ const BASE_URL = '/server/crime_diaries_function';
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
-  created_time?: number;
+  updated_at?: string;
   session_id?: string;
   source?: 'llm' | 'rag';
 }
