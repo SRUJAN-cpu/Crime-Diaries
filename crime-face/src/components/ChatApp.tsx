@@ -80,6 +80,8 @@ export function ChatApp({ user, onSignOut }: ChatAppProps) {
         isLoadingHistory={isLoadingHistory}
         error={error}
         onSend={send}
+        userLabel={user.first_name || user.email_id}
+        onSignOut={onSignOut}
       />
     </div>
   );
