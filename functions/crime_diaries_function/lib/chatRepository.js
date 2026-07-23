@@ -199,7 +199,7 @@ async function deleteSession(catalystApp, catalystUserId, sessionId) {
 			[config.tables.conversation.partitionKey]: catalystUserId,
 			updated_at: msg.updated_at
 		};
-		return table.deleteItem({ key });
+		return table.deleteItems({ keys: [key] });
 	});
 	await Promise.all(deletePromises);
 }
