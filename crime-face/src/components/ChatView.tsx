@@ -104,11 +104,11 @@ export function ChatView({
                     </div>
                     <div className="overflow-hidden">
                       <h4 className="font-bold text-sm truncate">{userLabel}</h4>
-                      <p className="text-[10px] text-on-surface-variant font-label uppercase tracking-wider">ID: 99283-KA</p>
+                      {/* <p className="text-[10px] text-on-surface-variant font-label uppercase tracking-wider">ID: 99283-KA</p>
                       <div className="mt-1 flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-success"></span>
                         <span className="text-[10px] text-on-surface-variant font-medium">Clearance Level 4</span>
-                      </div>
+                      </div> */}
                     </div>
                   </div>
 
@@ -150,7 +150,7 @@ export function ChatView({
                       className="w-full flex items-center gap-3 px-3 py-2 text-sm text-error hover:bg-error-container/20 rounded-lg transition-colors text-left font-bold"
                     >
                       <span className="material-symbols-outlined text-lg">logout</span>
-                      Sign Out Terminal
+                      Sign Out
                     </button>
                   </div>
                 </div>
@@ -165,17 +165,17 @@ export function ChatView({
         <div className="w-full px-6">
           {/* Empty State */}
           {messages.length === 0 && !isLoadingHistory && (
-            <div className="flex flex-col items-center justify-center text-center mt-[12vh] max-w-md mx-auto space-y-4">
+            <div className="flex flex-col items-center justify-center text-center mt-[12vh] px-6 space-y-4">
               <span className="material-symbols-outlined text-primary text-6xl" style={{ fontVariationSettings: '"FILL" 1' }}>
                 security
               </span>
               <h1 className="font-headline text-2xl font-bold text-on-surface">Crime Diaries Portal</h1>
               <p className="text-sm text-on-surface-variant leading-relaxed">
-                Start an investigation by querying gang networks, mapping hotspots, or viewing local FIR analysis in Bangalore.
+                Start an investigation by querying gang networks, mapping hotspots, or viewing local FIR analysis.
               </p>
               <div className="flex flex-wrap gap-2 justify-center pt-2">
                 <button
-                  onClick={() => onSend('Who are the current gang leaders active in the Bangalore North division?')}
+                  onClick={() => onSend('Who are the current gang leaders active in the Karnataka?')}
                   className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-xs font-semibold rounded-full border border-outline-variant transition-colors"
                 >
                   Show Active Gang Leaders
@@ -213,13 +213,13 @@ export function ChatView({
 
           {/* Typing Indicator */}
           {isSending && (
-            <div className="flex justify-start gap-4 max-w-[90%] mx-auto mb-6 mt-4">
+            <div className="flex justify-start gap-4 px-6 mb-6 mt-4">
               <div className="w-8 h-8 rounded-full bg-primary flex-shrink-0 flex items-center justify-center shadow-sm">
                 <span className="material-symbols-outlined text-on-primary text-sm" style={{ fontVariationSettings: '"FILL" 1' }}>
                   security
                 </span>
               </div>
-              <div className="max-w-[85%] flex-1">
+              <div className="flex-1">
                 <div className="agent-bubble bg-surface p-4 rounded-lg rounded-tl-none border border-outline-variant inline-block">
                   <div className="flex gap-1.5 items-center justify-center py-1">
                     <div className="w-2 h-2 rounded-full bg-outline animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -233,7 +233,7 @@ export function ChatView({
 
           {/* Error Message */}
           {error && (
-            <div className="max-w-[90%] mx-auto mt-4 p-4 rounded-lg bg-error-container text-on-error-container border border-error/20 text-sm font-medium flex items-center gap-3">
+            <div className="px-6 mt-4 p-4 rounded-lg bg-error-container text-on-error-container border border-error/20 text-sm font-medium flex items-center gap-3">
               <span className="material-symbols-outlined text-error">warning</span>
               {error}
             </div>
