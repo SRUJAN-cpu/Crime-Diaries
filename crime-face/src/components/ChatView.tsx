@@ -113,7 +113,7 @@ export function ChatView({
                   </div>
 
                   {/* Settings Navigation */}
-                  <div className="px-2 pt-2 space-y-0.5">
+                  {/* <div className="px-2 pt-2 space-y-0.5">
                     <button
                       onClick={() => alert('Profile View (visual only)')}
                       className="w-full flex items-center gap-3 px-3 py-2 text-sm text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors font-semibold text-left font-headline"
@@ -135,7 +135,7 @@ export function ChatView({
                       <span className="material-symbols-outlined text-lg">tune</span>
                       Preferences
                     </button>
-                  </div>
+                  </div> */}
 
                   {/* Divider */}
                   <div className="my-2 border-t border-outline-variant/30"></div>
