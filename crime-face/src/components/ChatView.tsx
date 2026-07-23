@@ -78,7 +78,7 @@ export function ChatView({ messages, isSending, isLoadingHistory, error, onSend 
 
       {/* Chat Messages Canvas */}
       <section className="flex-1 overflow-y-auto pb-36 pt-4">
-        <div className="max-w-[800px] mx-auto px-6">
+        <div className="w-full px-6">
           {/* Empty State */}
           {messages.length === 0 && !isLoadingHistory && (
             <div className="flex flex-col items-center justify-center text-center mt-[12vh] max-w-md mx-auto space-y-4">
@@ -161,7 +161,7 @@ export function ChatView({ messages, isSending, isLoadingHistory, error, onSend 
 
       {/* Sticky Bottom Input Box */}
       <footer className="fixed bottom-0 left-[280px] right-0 z-40 pb-6 px-6 bg-gradient-to-t from-background via-background/90 to-transparent">
-        <div className="max-w-[800px] mx-auto pt-2">
+        <div className="w-full pt-2">
           <ChatInput disabled={isSending} onSend={onSend} />
         </div>
       </footer>

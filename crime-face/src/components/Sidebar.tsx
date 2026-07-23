@@ -72,7 +72,7 @@ export function Sidebar({
           {/* New Investigation Button */}
           <button
             onClick={onNewChat}
-            className="w-full py-3 px-4 btn-primary text-on-primary rounded-lg font-label flex items-center justify-center gap-2 hover:opacity-90 transition-all duration-200 mb-6 shadow-sm text-sm"
+            className="w-full py-3 px-4 bg-primary text-on-primary rounded-lg font-label flex items-center justify-center gap-2 hover:bg-primary/90 transition-all duration-200 mb-6 shadow-sm text-sm"
           >
             <span className="material-symbols-outlined text-sm">add</span>
             New Investigation
