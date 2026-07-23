@@ -221,14 +221,47 @@ async function deleteSession(catalystApp, catalystUserId, sessionId) {
 	// Delete in batches to reduce number of requests
 	const deletePromises = [];
 	const batchSize = 25; // Adjust batch size as needed
-	for (let i = 0; i < messages.length; i += batchSize) {
-		const batch = messages.slice(i, i + batchSize);
-		const keys = batch.map(msg => NoSQLItem.from({
-			[config.tables.conversation.partitionKey]: catalystUserId,
-			updated_at: msg.updated_at
-		}));
-		deletePromises.push(table.deleteItems({ keys }));
+
+	// Filter out any messages that don't have required fields
+	const validMessages = messages.filter(msg =>
+		msg &&
+		typeof msg === 'object' &&
+		msg.hasOwnProperty('catalyst_user_id') &&
+		msg.catalyst_user_id !== null &&
+		msg.catalyst_user_id !== undefined &&
+		msg.hasOwnProperty('updated_at') &&
+		msg.updated_at !== null &&
+		msg.updated_at !== undefined
+	);
+
+	if (validMessages.length === 0) {
+		// No valid messages to delete, but this is not an error
+		return;
 	}
+
+	for (let i = 0; i < validMessages.length; i += batchSize) {
+		const batch = validMessages.slice(i, i + batchSize);
+		const keys = batch.map(msg => {
+			try {
+				const keyObj = {
+					[config.tables.conversation.partitionKey]: catalystUserId,
+					updated_at: msg.updated_at
+				};
+				// Remove any undefined values to prevent NoSQLItem.from() from throwing
+				const cleanKeyObj = Object.fromEntries(Object.entries(keyObj).filter(([, v]) => v !== undefined));
+				return NoSQLItem.from(cleanKeyObj);
+			} catch (keyError) {
+				// If we can't construct a key for this message, skip it rather than failing the whole operation
+				console.warn(`Skipping message due to invalid key:`, keyError);
+				return null;
+			}
+		}).filter(key => key !== null); // Remove any failed key constructions
+
+		if (keys.length > 0) {
+			deletePromises.push(table.deleteItems({ keys }));
+		}
+	}
+
 	await Promise.all(deletePromises);
 }
 
