@@ -103,10 +103,6 @@ async function getHistoryForUser(catalystApp, catalystUserId, { sessionId, limit
 		forward_scan: true
 	};
 
-	if (limit) {
-		query.limit = limit;
-	}
-
 	if (sessionId) {
 		query.other_condition = {
 			attribute: 'session_id',
@@ -115,43 +111,71 @@ async function getHistoryForUser(catalystApp, catalystUserId, { sessionId, limit
 		};
 	}
 
-	const response = await table.queryTable(query);
-	return (response.get || [])
-		.map((entry) => entry.item && entry.item.to())
-		.filter(Boolean);
+	// If limit is specified and positive, we use it and do a single query.
+	// Otherwise, we paginate to get all results.
+	if (typeof limit === 'number' && limit > 0) {
+		query.limit = limit;
+		const response = await table.queryTable(query);
+		return (response.get || [])
+			.map((entry) => entry.item && entry.item.to())
+			.filter(Boolean);
+	}
+
+	// No limit or limit <= 0: get all pages
+	let allItems = [];
+	let exclusiveStartKey = null;
+
+	do {
+		if (exclusiveStartKey) {
+			query.exclusive_start_key = exclusiveStartKey;
+		}
+		const response = await table.queryTable(query);
+		const items = (response.get || [])
+			.map((entry) => entry.item && entry.item.to())
+			.filter(Boolean);
+		allItems.push(...items);
+		exclusiveStartKey = response.last_evaluated_key;
+	} while (exclusiveStartKey);
+
+	return allItems;
 }
 
 /**
  * Groups a user's message history into a list of past sessions, most recent first.
+ * Note: This function retrieves the most recent 500 messages (across all sessions) to
+ * build the session list. For sessions with more than 500 messages, the message count
+ * will be an approximation and the name will be the most recent system message in the
+ * batch (if any).
  * @param {import('zcatalyst-sdk-node/lib/catalyst-app').CatalystApp} catalystApp
  * @param {string} catalystUserId
  */
 async function listSessions(catalystApp, catalystUserId) {
-	const messages = await getHistoryForUser(catalystApp, catalystUserId, { limit: 500 });
+	// Get the most recent 500 messages (descending order by updated_at)
+	const messages = await getHistoryForUser(catalystApp, catalystUserId, { limit: 500, forwardScan: false });
 
 	const sessions = new Map();
 	for (const msg of messages) {
 		const sessionId = msg.session_id;
-		const existing = sessions.get(sessionId) || {
-			session_id: sessionId,
-			message_count: 0,
-			last_message_time: 0,
-			last_message: '',
-			name: '' // will be set from system message if present
-		};
-		// If this is a system message that stores chat name, capture it
-		if (msg.role === 'system') {
-			// Assume system message content is the chat name
-			existing.name = msg.content;
-		} else {
-			existing.message_count += 1;
+		const existing = sessions.get(sessionId);
+		if (!existing) {
+			// First time seeing this session in the batch (most recent message)
 			const createdTime = new Date(msg.updated_at).getTime();
-			if (createdTime >= existing.last_message_time) {
-				existing.last_message_time = createdTime;
-				existing.last_message = msg.content;
+			sessions.set(sessionId, {
+				session_id: sessionId,
+				message_count: 1,
+				last_message_time: createdTime,
+				last_message: msg.content,
+				name: msg.role === 'system' ? msg.content : ''
+			});
+		} else {
+			// We've seen this session before in the batch (this message is older than the last one we saw)
+			existing.message_count += 1;
+			// If we haven't set a name yet (i.e., no system message encountered so far) and this is a system message, set it
+			if (!existing.name && msg.role === 'system') {
+				existing.name = msg.content;
 			}
+			// Do not update last_message_time or last_message because we already have a more recent one
 		}
-		sessions.set(sessionId, existing);
 	}
 
 	// Convert to array, prioritize name, fallback to last_message, then 'New Chat'
@@ -193,14 +217,18 @@ async function renameSession(catalystApp, catalystUserId, sessionId, newName) {
  */
 async function deleteSession(catalystApp, catalystUserId, sessionId) {
 	const table = await catalystApp.nosql().table(config.tables.conversation.name);
-	const messages = await getHistoryForUser(catalystApp, catalystUserId, { sessionId, limit: 1000 });
-	const deletePromises = messages.map(msg => {
-		const key = {
+	const messages = await getHistoryForUser(catalystApp, catalystUserId, { sessionId });
+	// Delete in batches to reduce number of requests
+	const deletePromises = [];
+	const batchSize = 25; // Adjust batch size as needed
+	for (let i = 0; i < messages.length; i += batchSize) {
+		const batch = messages.slice(i, i + batchSize);
+		const keys = batch.map(msg => NoSQLItem.from({
 			[config.tables.conversation.partitionKey]: catalystUserId,
 			updated_at: msg.updated_at
-		};
-		return table.deleteItems({ keys: [key] });
-	});
+		}));
+		deletePromises.push(table.deleteItems({ keys }));
+	}
 	await Promise.all(deletePromises);
 }
 
