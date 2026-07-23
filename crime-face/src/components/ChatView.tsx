@@ -24,7 +24,8 @@ export function ChatView({ messages, isSending, isLoadingHistory, error, onSend 
       <header className="flex justify-between items-center w-full px-6 h-16 sticky top-0 z-40 bg-surface/80 backdrop-blur-md border-b border-outline-variant">
         <div className="flex items-center gap-8">
           <span className="font-headline text-xl font-black text-primary">Crime Diaries</span>
-          <nav className="hidden md:flex gap-6">
+          {/* TODO: Uncomment when implementing Dashboard, Analytics, Maps */}
+          {/* <nav className="hidden md:flex gap-6">
             <a
               className="text-primary border-b-2 border-primary pb-1 font-label text-sm font-bold"
               href="#dashboard"
@@ -46,19 +47,20 @@ export function ChatView({ messages, isSending, isLoadingHistory, error, onSend 
             >
               Maps
             </a>
-          </nav>
+          </nav> */}
         </div>
-        
+
         {/* Right Header actions */}
         <div className="flex items-center gap-4">
-          <div className="relative flex items-center">
+          {/* TODO: Uncomment when implementing global search */}
+          {/* <div className="relative flex items-center">
             <span className="material-symbols-outlined absolute left-3 text-outline text-lg">search</span>
             <input
               type="text"
               placeholder="Global search..."
               className="bg-surface-container-high border-none rounded-full pl-10 pr-4 py-1.5 text-sm w-60 focus:ring-1 focus:ring-primary focus:outline-none placeholder-on-surface-variant/60"
             />
-          </div>
+          </div> */}
           <button className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-outline-variant font-label text-xs hover:bg-surface-container transition-colors font-semibold">
             <span className="material-symbols-outlined text-sm">language</span>
             Kannada / EN

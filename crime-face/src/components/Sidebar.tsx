@@ -66,14 +66,13 @@ export function Sidebar({
             </span>
             <div>
               <h1 className="font-headline text-xl font-bold text-primary">Crime Diaries</h1>
-              <p className="text-xs text-on-surface-variant font-label">Active Duty: Level 4</p>
             </div>
           </div>
 
           {/* New Investigation Button */}
           <button
             onClick={onNewChat}
-            className="w-full py-3 px-4 bg-primary text-on-primary rounded-lg font-label flex items-center justify-center gap-2 hover:opacity-90 transition-all duration-200 mb-6 shadow-sm text-sm"
+            className="w-full py-3 px-4 btn-primary text-on-primary rounded-lg font-label flex items-center justify-center gap-2 hover:opacity-90 transition-all duration-200 mb-6 shadow-sm text-sm"
           >
             <span className="material-symbols-outlined text-sm">add</span>
             New Investigation
@@ -81,31 +80,6 @@ export function Sidebar({
 
           {/* Navigation Lists */}
           <div className="space-y-6 overflow-y-auto flex-1 pr-1 custom-scrollbar">
-            {/* Pinned Chats Section */}
-            <div>
-              <h3 className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-3 px-4">
-                Pinned Chats
-              </h3>
-              <div className="space-y-1">
-                <a
-                  className="flex items-center gap-3 px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors group"
-                  href="#election-security"
-                  onClick={(e) => e.preventDefault()}
-                >
-                  <span className="material-symbols-outlined text-lg">push_pin</span>
-                  <span className="truncate">Election Security</span>
-                </a>
-                <a
-                  className="flex items-center gap-3 px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors group"
-                  href="#high-profile"
-                  onClick={(e) => e.preventDefault()}
-                >
-                  <span className="material-symbols-outlined text-lg">push_pin</span>
-                  <span className="truncate">High-Profile Case</span>
-                </a>
-              </div>
-            </div>
-
             {/* Recent Investigations Section */}
             <div>
               <h3 className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-3 px-4">
@@ -179,22 +153,6 @@ export function Sidebar({
 
         {/* Sidebar Footer */}
         <div className="mt-auto p-6 space-y-1 border-t border-outline-variant">
-          <a
-            className="flex items-center gap-3 px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg"
-            href="#settings"
-            onClick={(e) => e.preventDefault()}
-          >
-            <span className="material-symbols-outlined text-lg">settings</span>
-            System Settings
-          </a>
-          <a
-            className="flex items-center gap-3 px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg"
-            href="#audit"
-            onClick={(e) => e.preventDefault()}
-          >
-            <span className="material-symbols-outlined text-lg">receipt_long</span>
-            Audit Logs
-          </a>
           <button
             onClick={onSignOut}
             className="w-full flex items-center gap-3 px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-high hover:text-error transition-colors rounded-lg text-left"
@@ -202,21 +160,6 @@ export function Sidebar({
             <span className="material-symbols-outlined text-lg">logout</span>
             Sign Out
           </button>
-
-          {/* User Card */}
-          <div className="flex items-center gap-3 pt-4 px-4 border-t border-outline-variant/30 mt-2">
-            <div className="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center overflow-hidden border border-outline-variant">
-              <img
-                alt={userLabel}
-                className="w-full h-full object-cover"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuBcQBX2BcUQL8rIMESSk6tenXKk4FUjnzFwpbQxCCkneVxFMDgnav_Sdg0UWvG40Rod9BDVSN3mGj1vE_atOaDOvR4RWAfDWxpTBTalFCSCGelM_ubQJv1Tcs7TvqKGzkB5KZQROUQWcKI1Sf557ppYe39LwPdJwxc7er4q3PeUuMwjXd3A8PfMDWm5pqilSUcPADY5AlELxSg38MrmfrtyQWl9vJgHijWNn1ypj1vM5YvLCaZ-4IV7K4siY9oxOaQ9PgppJk5888nu"
-              />
-            </div>
-            <div className="overflow-hidden">
-              <p className="font-label text-sm font-bold truncate text-on-surface">{userLabel}</p>
-              <p className="text-[10px] text-on-surface-variant uppercase tracking-wider">ID: 99283-KA</p>
-            </div>
-          </div>
         </div>
       </aside>
 
