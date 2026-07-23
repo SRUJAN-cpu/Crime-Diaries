@@ -241,24 +241,27 @@ async function deleteSession(catalystApp, catalystUserId, sessionId) {
 
 	for (let i = 0; i < validMessages.length; i += batchSize) {
 		const batch = validMessages.slice(i, i + batchSize);
-		const keys = batch.map(msg => {
+		// deleteItems(...values) is variadic — each argument is one
+		// { keys: <single NoSQLItem> } delete spec, NOT one object holding an
+		// array of keys. Passing an array where a single key item was
+		// expected is exactly what caused "input value is not readable".
+		const deleteSpecs = batch.map(msg => {
 			try {
 				const keyObj = {
 					[config.tables.conversation.partitionKey]: catalystUserId,
 					updated_at: msg.updated_at
 				};
-				// Remove any undefined values to prevent NoSQLItem.from() from throwing
 				const cleanKeyObj = Object.fromEntries(Object.entries(keyObj).filter(([, v]) => v !== undefined));
-				return NoSQLItem.from(cleanKeyObj);
+				return { keys: NoSQLItem.from(cleanKeyObj) };
 			} catch (keyError) {
 				// If we can't construct a key for this message, skip it rather than failing the whole operation
 				console.warn(`Skipping message due to invalid key:`, keyError);
 				return null;
 			}
-		}).filter(key => key !== null); // Remove any failed key constructions
+		}).filter((spec) => spec !== null);
 
-		if (keys.length > 0) {
-			deletePromises.push(table.deleteItems({ keys }));
+		if (deleteSpecs.length > 0) {
+			deletePromises.push(table.deleteItems(...deleteSpecs));
 		}
 	}
 
