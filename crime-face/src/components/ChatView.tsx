@@ -30,7 +30,7 @@ export function ChatView({
   }, [messages, isSending]);
 
   return (
-    <main className="ml-[280px] flex flex-col min-h-screen bg-background text-on-surface select-none">
+    <main className="w-[calc(100vw-280px)] ml-[280px] flex flex-col min-h-screen bg-background text-on-surface select-none">
       {/* Top App Bar */}
       <header className="flex justify-between items-center w-full px-6 h-16 sticky top-0 z-40 bg-surface/80 backdrop-blur-md border-b border-outline-variant">
         <div className="flex items-center gap-8">
@@ -165,30 +165,30 @@ export function ChatView({
         <div className="w-full px-6">
           {/* Empty State */}
           {messages.length === 0 && !isLoadingHistory && (
-            <div className="flex flex-col items-center justify-center text-center mt-[12vh] px-6 space-y-4">
-              <span className="material-symbols-outlined text-primary text-6xl" style={{ fontVariationSettings: '"FILL" 1' }}>
+            <div className="flex flex-col items-center justify-center text-center mt-[12vh] px-6 space-y-4 w-full">
+              <span className="material-symbols-outlined text-primary text-6xl mx-auto" style={{ fontVariationSettings: '"FILL" 1' }}>
                 security
               </span>
-              <h1 className="font-headline text-2xl font-bold text-on-surface">Crime Diaries Portal</h1>
-              <p className="text-sm text-on-surface-variant leading-relaxed">
+              <h1 className="font-headline text-2xl font-bold text-on-surface w-full text-center">Crime Diaries Portal</h1>
+              <p className="text-sm text-on-surface-variant leading-relaxed w-full text-center">
                 Start an investigation by querying gang networks, mapping hotspots, or viewing local FIR analysis.
               </p>
-              <div className="flex flex-wrap gap-2 justify-center pt-2">
+              <div className="flex flex-wrap gap-2 px-6 pt-2 w-full justify-between">
                 <button
                   onClick={() => onSend('Who are the current gang leaders active in the Karnataka?')}
-                  className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-xs font-semibold rounded-full border border-outline-variant transition-colors"
+                  className="flex-1 px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-xs font-semibold rounded-full border border-outline-variant transition-colors"
                 >
                   Show Active Gang Leaders
                 </button>
                 <button
                   onClick={() => onSend('Show me a geographic distribution of their recent activities.')}
-                  className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-xs font-semibold rounded-full border border-outline-variant transition-colors"
+                  className="flex-1 px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-xs font-semibold rounded-full border border-outline-variant transition-colors"
                 >
                   Map Geographic Hotspots
                 </button>
                 <button
                   onClick={() => onSend('Generate a network diagram showing the connections between Rajesh Kumar and known associates.')}
-                  className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-xs font-semibold rounded-full border border-outline-variant transition-colors"
+                  className="flex-1 px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-xs font-semibold rounded-full border border-outline-variant transition-colors"
                 >
                   Link Analysis Chart
                 </button>
