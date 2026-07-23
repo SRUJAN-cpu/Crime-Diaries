@@ -8,6 +8,17 @@ const { classifyMessage, ROUTES } = require('./lib/classifier');
 const { addUserMessage, addAssistantMessage, addSystemMessage, toApiMessages } = require('./lib/messageBuilder');
 const chatRepository = require('./lib/chatRepository');
 
+// Detect if message contains Kannada characters - UPDATED
+function detectKannada(message) {
+	const kannadaRegex = /[ಀ-೿]/; // Unicode range for Kannada script
+	return kannadaRegex.test(message);
+}
+
+// Determine response language based on message content
+function determineResponseLanguage(message) {
+	return detectKannada(message) ? 'kn' : 'en';
+}
+
 const app = express();
 app.use(express.json());
 
@@ -16,7 +27,7 @@ app.use(express.json());
 // omit it to start a new one.
 app.post('/chat', async (req, res) => {
 	try {
-		const { message, session_id: sessionIdFromClient, images } = req.body || {};
+		const { message, session_id: sessionIdFromClient, images, language } = req.body || {};
 		if (!message || typeof message !== 'string' || !message.trim()) {
 			res.status(400).json({ error: 'message is required' });
 			return;
@@ -59,12 +70,15 @@ app.post('/chat', async (req, res) => {
 		});
 		chatForLlm.push({ role: 'user', content: message });
 
+		// Determine response language based on message content (Kannada script = Kannada, else English)
+		const responseLanguage = determineResponseLanguage(message);
+
 		// Determine route: image -> VLM, else keyword classifier
 		const route = hasImages ? ROUTES.LLM : classifyMessage(message);
 		const { answer } =
 			route === ROUTES.RAG
-				? await getRagResponse({ messages: chatForLlm })
-				: await getLlmResponse({ messages: chatForLlm });
+				? await getRagResponse({ messages: chatForLlm, language: responseLanguage })
+				: await getLlmResponse({ messages: chatForLlm, images, language: responseLanguage });
 
 		// Save the assistant's reply
 		await addAssistantMessage(catalystApp, messages, {

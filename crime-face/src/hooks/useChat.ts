@@ -2,10 +2,18 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ChatMessage,
   ChatSession,
+  Language,
   fetchHistory,
   fetchSessions,
   sendChatMessage
 } from '../api/chatApi';
+
+const LANGUAGE_STORAGE_KEY = 'crime-diaries-language';
+
+function loadStoredLanguage(): Language {
+  const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+  return stored === 'kn' ? 'kn' : 'en';
+}
 
 export function useChat() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -14,6 +22,12 @@ export function useChat() {
   const [isSending, setIsSending] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [language, setLanguageState] = useState<Language>(loadStoredLanguage);
+
+  const setLanguage = useCallback((next: Language) => {
+    setLanguageState(next);
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, next);
+  }, []);
 
   const loadSessions = useCallback(async () => {
     try {
@@ -60,7 +74,11 @@ export function useChat() {
       setIsSending(true);
 
       try {
-        const { session_id: sessionId, answer } = await sendChatMessage(trimmed, activeSessionId);
+        const { session_id: sessionId, answer } = await sendChatMessage(
+          trimmed,
+          activeSessionId,
+          language
+        );
         setActiveSessionId(sessionId);
         setMessages((prev) => [...prev, { role: 'assistant', content: answer }]);
         loadSessions();
@@ -70,7 +88,7 @@ export function useChat() {
         setIsSending(false);
       }
     },
-    [activeSessionId, isSending, loadSessions]
+    [activeSessionId, isSending, language, loadSessions]
   );
 
   const refetchSessions = useCallback(async () => {
@@ -84,6 +102,8 @@ export function useChat() {
     isSending,
     isLoadingHistory,
     error,
+    language,
+    setLanguage,
     startNewChat,
     openSession,
     send,

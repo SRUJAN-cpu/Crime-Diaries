@@ -4,6 +4,8 @@
 
 const BASE_URL = '/server/crime_diaries_function';
 
+export type Language = 'en' | 'kn';
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -31,13 +33,14 @@ async function parseJsonOrThrow(response: Response): Promise<any> {
 
 export async function sendChatMessage(
   message: string,
-  sessionId?: string
+  sessionId?: string,
+  language?: Language
 ): Promise<{ session_id: string; answer: string }> {
   const response = await fetch(`${BASE_URL}/chat`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, session_id: sessionId })
+    body: JSON.stringify({ message, session_id: sessionId, language })
   });
   return parseJsonOrThrow(response);
 }

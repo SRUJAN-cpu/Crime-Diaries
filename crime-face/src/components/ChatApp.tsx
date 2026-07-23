@@ -16,6 +16,8 @@ export function ChatApp({ user, onSignOut }: ChatAppProps) {
     isSending,
     isLoadingHistory,
     error,
+    language,
+    setLanguage,
     startNewChat,
     openSession,
     send,
@@ -82,6 +84,8 @@ export function ChatApp({ user, onSignOut }: ChatAppProps) {
         onSend={send}
         userLabel={user.first_name || user.email_id}
         onSignOut={onSignOut}
+        language={language}
+        onSetLanguage={setLanguage}
       />
     </div>
   );

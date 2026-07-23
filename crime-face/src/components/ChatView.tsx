@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChatMessage } from '../api/chatApi';
+import { ChatMessage, Language } from '../api/chatApi';
 import { ChatInput } from './ChatInput';
+import { LanguageToggle } from './LanguageToggle';
 import { MessageBubble } from './MessageBubble';
 
 interface ChatViewProps {
@@ -11,6 +12,8 @@ interface ChatViewProps {
   onSend: (text: string) => void;
   userLabel: string;
   onSignOut: () => void;
+  language: Language;
+  onSetLanguage: (language: Language) => void;
 }
 
 export function ChatView({
@@ -20,7 +23,9 @@ export function ChatView({
   error,
   onSend,
   userLabel,
-  onSignOut
+  onSignOut,
+  language,
+  onSetLanguage
 }: ChatViewProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -72,10 +77,7 @@ export function ChatView({
               className="bg-surface-container-high border-none rounded-full pl-10 pr-4 py-1.5 text-sm w-60 focus:ring-1 focus:ring-primary focus:outline-none placeholder-on-surface-variant/60"
             />
           </div> */}
-          <button className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-outline-variant font-label text-xs hover:bg-surface-container transition-colors font-semibold">
-            <span className="material-symbols-outlined text-sm">language</span>
-            Kannada / EN
-          </button>
+          <LanguageToggle language={language} onChange={onSetLanguage} />
           <div className="flex gap-1 relative">
             <button className="w-9 h-9 flex items-center justify-center hover:bg-surface-container rounded-full transition-transform active:scale-90 text-on-surface-variant">
               <span className="material-symbols-outlined text-xl">notifications</span>
