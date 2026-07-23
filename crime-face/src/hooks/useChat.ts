@@ -73,6 +73,10 @@ export function useChat() {
     [activeSessionId, isSending, loadSessions]
   );
 
+  const refetchSessions = useCallback(async () => {
+    await loadSessions();
+  }, [loadSessions]);
+
   return {
     sessions,
     activeSessionId,
@@ -82,6 +86,7 @@ export function useChat() {
     error,
     startNewChat,
     openSession,
-    send
+    send,
+    refetchSessions
   };
 }

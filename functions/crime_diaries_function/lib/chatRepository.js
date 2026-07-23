@@ -136,23 +136,79 @@ async function listSessions(catalystApp, catalystUserId) {
 			session_id: sessionId,
 			message_count: 0,
 			last_message_time: 0,
-			last_message: ''
+			last_message: '',
+			name: '' // will be set from system message if present
 		};
-		existing.message_count += 1;
-		const createdTime = new Date(msg.updated_at).getTime();
-		if (createdTime >= existing.last_message_time) {
-			existing.last_message_time = createdTime;
-			existing.last_message = msg.content;
+		// If this is a system message that stores chat name, capture it
+		if (msg.role === 'system') {
+			// Assume system message content is the chat name
+			existing.name = msg.content;
+		} else {
+			existing.message_count += 1;
+			const createdTime = new Date(msg.updated_at).getTime();
+			if (createdTime >= existing.last_message_time) {
+				existing.last_message_time = createdTime;
+				existing.last_message = msg.content;
+			}
 		}
 		sessions.set(sessionId, existing);
 	}
 
-	return Array.from(sessions.values()).sort((a, b) => b.last_message_time - a.last_message_time);
+	// Convert to array, prioritize name, fallback to last_message, then 'New Chat'
+	const sessionsArray = Array.from(sessions.values()).map(sess => ({
+		...sess,
+		displayName: sess.name || sess.last_message || 'New Chat'
+	}));
+	return sessionsArray.sort((a, b) => b.last_message_time - a.last_message_time);
+}
+
+/**
+ * Renames a chat session by inserting a system message with the new name.
+ * The most recent system message (by timestamp) is used as the display name.
+ * @param {import('zcatalyst-sdk-node/lib/catalyst-app').CatalystApp} catalystApp
+ * @param {string} catalystUserId
+ * @param {string} sessionId
+ * @param {string} newName
+ */
+async function renameSession(catalystApp, catalystUserId, sessionId, newName) {
+	const table = await catalystApp.nosql().table(config.tables.conversation.name);
+	const now = Date.now();
+	const item = {
+		catalyst_user_id: catalystUserId,
+		updated_at: new Date(now).toISOString(),
+		session_id: sessionId,
+		role: 'system',
+		content: newName
+	};
+	await table.insertItems({
+		item: NoSQLItem.from(withoutUndefined(item))
+	});
+}
+
+/**
+ * Deletes all messages belonging to a given session for a user.
+ * @param {import('zcatalyst-sdk-node/lib/catalyst-app').CatalystApp} catalystApp
+ * @param {string} catalystUserId
+ * @param {string} sessionId
+ */
+async function deleteSession(catalystApp, catalystUserId, sessionId) {
+	const table = await catalystApp.nosql().table(config.tables.conversation.name);
+	const messages = await getHistoryForUser(catalystApp, catalystUserId, { sessionId, limit: 1000 });
+	const deletePromises = messages.map(msg => {
+		const key = {
+			[config.tables.conversation.partitionKey]: catalystUserId,
+			updated_at: msg.updated_at
+		};
+		return table.deleteItem({ key });
+	});
+	await Promise.all(deletePromises);
 }
 
 module.exports = {
 	ensureUserRecord,
 	saveMessage,
 	getHistoryForUser,
-	listSessions
+	listSessions,
+	renameSession,
+	deleteSession
 };

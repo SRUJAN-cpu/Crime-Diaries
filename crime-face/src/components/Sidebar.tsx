@@ -1,10 +1,13 @@
 import { ChatSession } from '../api/chatApi';
+import { useState } from 'react';
 
 interface SidebarProps {
   sessions: ChatSession[];
   activeSessionId?: string;
   onNewChat: () => void;
   onSelectSession: (sessionId: string) => void;
+  onRenameSession: (sessionId: string, name: string) => void;
+  onDeleteSession: (sessionId: string) => void;
   userLabel: string;
   onSignOut: () => void;
 }
@@ -14,33 +17,203 @@ export function Sidebar({
   activeSessionId,
   onNewChat,
   onSelectSession,
+  onRenameSession,
+  onDeleteSession,
   userLabel,
   onSignOut
 }: SidebarProps) {
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [sessionIdForMenu, setSessionIdForMenu] = useState<string | null>(null);
+
+  const handleOpenMenu = (event: React.MouseEvent<HTMLElement>, sessionId: string) => {
+    event.stopPropagation();
+    setAnchorEl(event.currentTarget);
+    setSessionIdForMenu(sessionId);
+  };
+
+  const handleCloseMenu = () => {
+    setAnchorEl(null);
+    setSessionIdForMenu(null);
+  };
+
+  const handleRename = () => {
+    if (!sessionIdForMenu) return;
+    const newName = window.prompt('Enter new chat name:');
+    if (newName !== null && newName.trim() !== '') {
+      onRenameSession(sessionIdForMenu, newName.trim());
+    }
+    handleCloseMenu();
+  };
+
+  const handleDelete = () => {
+    if (!sessionIdForMenu) return;
+    if (window.confirm('Are you sure you want to delete this chat?')) {
+      onDeleteSession(sessionIdForMenu);
+    }
+    handleCloseMenu();
+  };
+
   return (
-    <aside className="sidebar">
-      <button className="new-chat-button" onClick={onNewChat}>
-        + New chat
-      </button>
-      <div className="session-list">
-        {sessions.length === 0 && <p className="session-list-empty">No past chats yet</p>}
-        {sessions.map((session) => (
-          <button
-            key={session.session_id}
-            className={
-              'session-item' + (session.session_id === activeSessionId ? ' session-item-active' : '')
-            }
-            onClick={() => onSelectSession(session.session_id)}
-          >
-            <span className="session-item-preview">{session.last_message || 'New conversation'}</span>
-          </button>
-        ))}
-      </div>
-      <div className="sidebar-footer">
-        <span className="sidebar-user">{userLabel}</span>
-        <button className="sidebar-signout" onClick={onSignOut}>
-          Sign out
+    <aside className="w-[280px] h-screen fixed left-0 top-0 flex flex-col border-r border-outline-variant bg-surface-container-low z-50 bottom-0 select-none">
+      <div className="p-6 flex flex-col flex-1 min-h-0">
+        {/* Brand Header */}
+        <div className="flex items-center gap-3 mb-8">
+          <span className="material-symbols-outlined text-primary text-3xl" style={{ fontVariationSettings: '"FILL" 1' }}>
+            security
+          </span>
+          <div>
+            <h1 className="font-headline text-xl font-bold text-primary">Crime Diaries</h1>
+            <p className="text-xs text-on-surface-variant font-label">Active Duty: Level 4</p>
+          </div>
+        </div>
+
+        {/* New Investigation Button */}
+        <button
+          onClick={onNewChat}
+          className="w-full py-3 px-4 bg-primary text-on-primary rounded-lg font-label flex items-center justify-center gap-2 hover:opacity-90 transition-all duration-200 mb-6 shadow-sm text-sm"
+        >
+          <span className="material-symbols-outlined text-sm">add</span>
+          New Investigation
         </button>
+
+        {/* Navigation Lists */}
+        <div className="space-y-6 overflow-y-auto flex-1 pr-1 custom-scrollbar">
+          {/* Pinned Chats Section */}
+          <div>
+            <h3 className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-3 px-4">
+              Pinned Chats
+            </h3>
+            <div className="space-y-1">
+              <a
+                className="flex items-center gap-3 px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors group"
+                href="#election-security"
+                onClick={(e) => e.preventDefault()}
+              >
+                <span className="material-symbols-outlined text-lg">push_pin</span>
+                <span className="truncate">Election Security</span>
+              </a>
+              <a
+                className="flex items-center gap-3 px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors group"
+                href="#high-profile"
+                onClick={(e) => e.preventDefault()}
+              >
+                <span className="material-symbols-outlined text-lg">push_pin</span>
+                <span className="truncate">High-Profile Case</span>
+              </a>
+            </div>
+          </div>
+
+          {/* Recent Investigations Section */}
+          <div>
+            <h3 className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-3 px-4">
+              Recent Investigations
+            </h3>
+            <div className="space-y-1 relative">
+              {sessions.length === 0 && (
+                <p className="text-xs text-on-surface-variant/60 px-4 py-2 italic">
+                  No past chats yet
+                </p>
+              )}
+              {sessions.map((session) => {
+                const isActive = session.session_id === activeSessionId;
+                return (
+                  <div
+                    key={session.session_id}
+                    onClick={() => onSelectSession(session.session_id)}
+                    className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors group cursor-pointer ${
+                      isActive
+                        ? 'text-primary font-bold border-l-4 border-primary bg-primary-fixed rounded-r-lg'
+                        : 'text-sm text-on-surface-variant hover:bg-surface-container-high'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-lg">
+                      {isActive ? 'chat_bubble' : 'history'}
+                    </span>
+                    <span className="truncate flex-1">
+                      {session.displayName || session.last_message || 'New Chat'}
+                    </span>
+                    <button
+                      aria-label="More options"
+                      onClick={(e) => handleOpenMenu(e, session.session_id)}
+                      className="p-1 hover:bg-surface-container-highest rounded transition-colors group-hover:block hidden"
+                    >
+                      <span className="material-symbols-outlined text-sm">more_vert</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Floating Settings/Options menu */}
+      {anchorEl && sessionIdForMenu && (
+        <div
+          className="absolute bg-surface border border-outline-variant rounded-lg p-1.5 shadow-lg z-[999] min-w-[120px] text-sm font-label"
+          style={{
+            top: anchorEl.getBoundingClientRect().bottom + window.scrollY + 4,
+            left: Math.max(16, anchorEl.getBoundingClientRect().left + window.scrollX - 80),
+          }}
+          onMouseLeave={handleCloseMenu}
+        >
+          <button
+            onClick={handleRename}
+            className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-surface-container-high rounded text-left"
+          >
+            <span className="material-symbols-outlined text-sm">edit</span>
+            Rename
+          </button>
+          <button
+            onClick={handleDelete}
+            className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-surface-container-high hover:text-error rounded text-left text-on-surface-variant"
+          >
+            <span className="material-symbols-outlined text-sm">delete</span>
+            Delete
+          </button>
+        </div>
+      )}
+
+      {/* Sidebar Footer */}
+      <div className="mt-auto p-6 space-y-1 border-t border-outline-variant">
+        <a
+          className="flex items-center gap-3 px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg"
+          href="#settings"
+          onClick={(e) => e.preventDefault()}
+        >
+          <span className="material-symbols-outlined text-lg">settings</span>
+          System Settings
+        </a>
+        <a
+          className="flex items-center gap-3 px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg"
+          href="#audit"
+          onClick={(e) => e.preventDefault()}
+        >
+          <span className="material-symbols-outlined text-lg">receipt_long</span>
+          Audit Logs
+        </a>
+        <button
+          onClick={onSignOut}
+          className="w-full flex items-center gap-3 px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-high hover:text-error transition-colors rounded-lg text-left"
+        >
+          <span className="material-symbols-outlined text-lg">logout</span>
+          Sign Out
+        </button>
+
+        {/* User Card */}
+        <div className="flex items-center gap-3 pt-4 px-4 border-t border-outline-variant/30 mt-2">
+          <div className="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center overflow-hidden border border-outline-variant">
+            <img
+              alt={userLabel}
+              className="w-full h-full object-cover"
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuBcQBX2BcUQL8rIMESSk6tenXKk4FUjnzFwpbQxCCkneVxFMDgnav_Sdg0UWvG40Rod9BDVSN3mGj1vE_atOaDOvR4RWAfDWxpTBTalFCSCGelM_ubQJv1Tcs7TvqKGzkB5KZQROUQWcKI1Sf557ppYe39LwPdJwxc7er4q3PeUuMwjXd3A8PfMDWm5pqilSUcPADY5AlELxSg38MrmfrtyQWl9vJgHijWNn1ypj1vM5YvLCaZ-4IV7K4siY9oxOaQ9PgppJk5888nu"
+            />
+          </div>
+          <div className="overflow-hidden">
+            <p className="font-label text-sm font-bold truncate text-on-surface">{userLabel}</p>
+            <p className="text-[10px] text-on-surface-variant uppercase tracking-wider">ID: 99283-KA</p>
+          </div>
+        </div>
       </div>
     </aside>
   );

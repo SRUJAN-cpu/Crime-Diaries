@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const catalyst = require('zcatalyst-sdk-node');
 const { getLlmResponse, getRagResponse } = require('./lib/aiClient');
 const { classifyMessage, ROUTES } = require('./lib/classifier');
-const { addUserMessage, addAssistantMessage, toApiMessages } = require('./lib/messageBuilder');
+const { addUserMessage, addAssistantMessage, addSystemMessage, toApiMessages } = require('./lib/messageBuilder');
 const chatRepository = require('./lib/chatRepository');
 
 const app = express();
@@ -29,30 +29,51 @@ app.post('/chat', async (req, res) => {
 
 		await chatRepository.ensureUserRecord(catalystApp, catalystUser);
 
-		const sessionId = sessionIdFromClient || crypto.randomUUID();
+		let sessionId = sessionIdFromClient || crypto.randomUUID();
+
+		// Fetch existing history for this session (may be empty for new session)
 		const historyRows = await chatRepository.getHistoryForUser(catalystApp, catalystUserId, {
 			sessionId,
 			limit: 50
 		});
-		const messages = toApiMessages(historyRows);
+		let messages = historyRows.map(row => ({ role: row.role, content: row.content }));
 
-		await addUserMessage(catalystApp, messages, { catalystUserId, sessionId, content: message });
+		// If this is a brand‑new session, add a system message that holds the chat name.
+		const isNewSession = !sessionIdFromClient;
+		if (isNewSession) {
+			await addSystemMessage(catalystApp, messages, {
+				catalystUserId,
+				sessionId,
+				content: 'New Chat'   // default name; user can rename later
+			});
+		}
 
-		// An attached image always goes to the vision model — RAG/GLM have no
-		// concept of images, so the text-based crime-keyword classifier only
-		// applies when there isn't one.
+		// Build the array that will be sent to the LLM (exclude system messages)
+		const chatForLlm = messages.filter(m => m.role !== 'system');
+
+		// Append the user's message to both stores
+		await addUserMessage(catalystApp, messages, {
+			catalystUserId,
+			sessionId,
+			content: message
+		});
+		chatForLlm.push({ role: 'user', content: message });
+
+		// Determine route: image -> VLM, else keyword classifier
 		const route = hasImages ? ROUTES.LLM : classifyMessage(message);
 		const { answer } =
 			route === ROUTES.RAG
-				? await getRagResponse({ messages, sessionId })
-				: await getLlmResponse({ messages, sessionId, images });
+				? await getRagResponse({ messages: chatForLlm })
+				: await getLlmResponse({ messages: chatForLlm });
 
+		// Save the assistant's reply
 		await addAssistantMessage(catalystApp, messages, {
 			catalystUserId,
 			sessionId,
 			content: answer,
 			source: route
 		});
+		chatForLlm.push({ role: 'assistant', content: answer });
 
 		res.status(200).json({ session_id: sessionId, answer });
 	} catch (err) {
@@ -94,6 +115,49 @@ app.get('/history', async (req, res) => {
 	} catch (err) {
 		console.error('GET /history failed', err);
 		res.status(500).json({ error: 'Failed to fetch history' });
+	}
+});
+
+// Rename a chat session
+app.patch('/sessions/:sessionId', async (req, res) => {
+	try {
+		const { sessionId } = req.params;
+		const { name } = req.body;
+		if (!sessionId || typeof sessionId !== 'string' || !sessionId.trim()) {
+			res.status(400).json({ error: 'sessionId is required' });
+			return;
+		}
+		if (!name || typeof name !== 'string' || !name.trim()) {
+			res.status(400).json({ error: 'name is required' });
+			return;
+		}
+		const catalystApp = catalyst.initialize(req);
+		const catalystUser = await catalystApp.userManagement().getCurrentUser();
+		const catalystUserId = catalystUser.user_id;
+		await chatRepository.renameSession(catalystApp, catalystUserId, sessionId, name.trim());
+		res.status(200).json({ success: true });
+	} catch (err) {
+		console.error('PATCH /sessions/:sessionId failed', err);
+		res.status(500).json({ error: 'Failed to rename session' });
+	}
+});
+
+// Delete a chat session
+app.delete('/sessions/:sessionId', async (req, res) => {
+	try {
+		const { sessionId } = req.params;
+		if (!sessionId || typeof sessionId !== 'string' || !sessionId.trim()) {
+			res.status(400).json({ error: 'sessionId is required' });
+			return;
+		}
+		const catalystApp = catalyst.initialize(req);
+		const catalystUser = await catalystApp.userManagement().getCurrentUser();
+		const catalystUserId = catalystUser.user_id;
+		await chatRepository.deleteSession(catalystApp, catalystUserId, sessionId);
+		res.status(200).json({ success: true });
+	} catch (err) {
+		console.error('DELETE /sessions/:sessionId failed', err);
+		res.status(500).json({ error: 'Failed to delete session' });
 	}
 });
 

@@ -17,6 +17,7 @@ export interface ChatSession {
   message_count: number;
   last_message_time: number;
   last_message: string;
+  displayName: string;
 }
 
 async function parseJsonOrThrow(response: Response): Promise<any> {

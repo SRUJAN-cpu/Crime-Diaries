@@ -13,9 +13,6 @@ interface AuthGateProps {
 
 const LOGIN_CONTAINER_ID = 'catalyst-login-container';
 
-// 'checking' until the first auth check resolves. After that, whether we're
-// signed in is entirely determined by `user` — there's no separate
-// "signed-in but no user yet" state to accidentally get stuck in.
 type Status = 'checking' | 'signed-out' | 'sdk-unavailable';
 
 export function AuthGate({ children }: AuthGateProps) {
@@ -26,8 +23,6 @@ export function AuthGate({ children }: AuthGateProps) {
   useEffect(() => {
     let cancelled = false;
 
-    // Strip any leftover query params a previous sign-in bounce may have
-    // left on the URL.
     if (window.location.search) {
       window.history.replaceState(null, '', window.location.pathname);
     }
@@ -42,8 +37,6 @@ export function AuthGate({ children }: AuthGateProps) {
       }
 
       try {
-        // Never hang on "Checking..." forever if the SDK call itself never
-        // settles — bail to the sign-in screen after a timeout instead.
         const response = await Promise.race([
           auth.getProjectUserDetails(),
           new Promise<never>((_, reject) =>
@@ -53,9 +46,6 @@ export function AuthGate({ children }: AuthGateProps) {
         if (cancelled) {
           return;
         }
-        // The resolved shape is { status: <http code>, content: {...} } —
-        // NOT { status: 'success'|'failure', data: {...} }, which is only
-        // the raw server response body before the SDK unwraps it.
         if (response && response.status === 200 && response.content) {
           setUser(response.content as unknown as CurrentUser);
           return;
@@ -76,18 +66,10 @@ export function AuthGate({ children }: AuthGateProps) {
     };
   }, []);
 
-  // No effect auto-triggers signIn() here on purpose. signIn() will redirect
-  // the whole page if it thinks you're already signed in — doing that
-  // automatically from an effect is what caused an earlier redirect loop.
-  // Making it a manual click means the worst case is one redirect, not an
-  // automatic cycle.
   const startSignIn = () => {
     setError(null);
     const cleanUrl = `${window.location.origin}${window.location.pathname}`;
     try {
-      // signIn() doesn't reliably return a Promise in this SDK build (it can
-      // return undefined), so don't chain .catch() on it directly — that
-      // crashed with "Cannot read properties of undefined (reading 'catch')".
       const result = window.catalyst?.auth.signIn(LOGIN_CONTAINER_ID, { redirectUrl: cleanUrl });
       if (result && typeof (result as Promise<void>).catch === 'function') {
         (result as Promise<void>).catch((err: unknown) => {
@@ -107,26 +89,70 @@ export function AuthGate({ children }: AuthGateProps) {
     return <>{children(user, signOut)}</>;
   }
 
+  // Visual status and screens wrapped in Sahara design theme
   if (status === 'sdk-unavailable') {
     return (
-      <div className="auth-status">
-        Catalyst SDK not found — this app needs to be served through Catalyst (catalyst serve, or
-        deployed) for sign-in to work.
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-on-surface font-body">
+        <div className="max-w-md w-full bg-surface border border-outline-variant p-8 rounded-lg text-center shadow-lg space-y-4">
+          <span className="material-symbols-outlined text-error text-5xl">warning</span>
+          <h1 className="font-headline text-2xl font-bold text-error">SDK Unavailable</h1>
+          <p className="text-sm text-on-surface-variant leading-relaxed">
+            Catalyst SDK not found. This application must be served through Zoho Catalyst CLI or deployed environment to support secure authentication.
+          </p>
+          <div className="text-xs text-outline font-label bg-surface-container p-3 rounded-lg border border-outline-variant/30 select-all">
+            catalyst serve
+          </div>
+        </div>
       </div>
     );
   }
 
   if (status === 'checking') {
-    return <div className="auth-status">Checking sign-in status...</div>;
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-on-surface font-body">
+        <div className="flex flex-col items-center space-y-4">
+          <span className="animate-spin material-symbols-outlined text-primary text-4xl">sync</span>
+          <p className="text-sm text-on-surface-variant font-medium">Checking sign-in status...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="auth-screen">
-      {error && <p className="chat-error">{error}</p>}
-      <button className="new-chat-button" onClick={startSignIn}>
-        Sign in
-      </button>
-      <div id={LOGIN_CONTAINER_ID} className="auth-login-container" />
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-on-surface font-body">
+      <div className="max-w-md w-full bg-surface border border-outline-variant p-8 rounded-lg text-center shadow-lg space-y-6">
+        {/* Brand Header */}
+        <div className="flex flex-col items-center space-y-2">
+          <span className="material-symbols-outlined text-primary text-5xl" style={{ fontVariationSettings: '"FILL" 1' }}>
+            security
+          </span>
+          <h1 className="font-headline text-3xl font-bold text-primary">Crime Diaries</h1>
+          <p className="text-xs text-on-surface-variant font-label uppercase tracking-widest">
+            Intelligence Command Center
+          </p>
+        </div>
+
+        <p className="text-sm text-on-surface-variant leading-relaxed">
+          Access to this terminal is restricted. Please authenticate with your official credentials to proceed.
+        </p>
+
+        {error && (
+          <div className="p-3 text-xs bg-error-container text-on-error-container border border-error/20 rounded-lg font-medium text-left flex items-start gap-2">
+            <span className="material-symbols-outlined text-error text-sm mt-0.5">error</span>
+            <span>{error}</span>
+          </div>
+        )}
+
+        <button
+          onClick={startSignIn}
+          className="w-full py-3 px-6 bg-primary text-on-primary rounded-lg font-label font-bold shadow-md hover:opacity-95 active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
+        >
+          <span className="material-symbols-outlined text-lg">login</span>
+          Authenticate
+        </button>
+
+        <div id={LOGIN_CONTAINER_ID} className="auth-login-container w-full mt-4" />
+      </div>
     </div>
   );
 }

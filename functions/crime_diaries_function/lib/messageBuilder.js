@@ -49,4 +49,20 @@ function toApiMessages(historyRows) {
 	return historyRows.map((row) => ({ role: row.role, content: row.content }));
 }
 
-module.exports = { addUserMessage, addAssistantMessage, toApiMessages };
+/**
+ * @param {import('zcatalyst-sdk-node/lib/catalyst-app').CatalystApp} catalystApp
+ * @param {Array<{role: string, content: string}>} messages
+ * @param {{ catalystUserId: string, sessionId: string, content: string }} params
+ */
+async function addSystemMessage(catalystApp, messages, { catalystUserId, sessionId, content }) {
+	messages.push({ role: 'system', content });
+	await chatRepository.saveMessage(catalystApp, {
+		catalystUserId,
+		sessionId,
+		role: 'system',
+		content
+	});
+	return messages;
+}
+
+module.exports = { addUserMessage, addAssistantMessage, addSystemMessage, toApiMessages };
