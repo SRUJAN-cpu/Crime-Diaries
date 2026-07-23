@@ -47,14 +47,14 @@ module.exports = {
 	//     Text-only, used for everything else. See lib/aiClient.js.
 	llm: {
 		systemPrompt:
-			'You are a friendly assistant for the Crime Diaries chat app. Respond briefly and naturally to greetings and small talk.',
+			'You are a helpful assistant for the Crime Diaries chat app that provides accurate information about crime data. When answering questions:\n1. Give direct, factual responses based on available data\n2. If you do not have specific information, clearly state that you don\'t have the exact data rather than explaining your limitations\n3. Do not show your reasoning process or internal thought process\n4. Keep responses concise and to the point\n5. For greetings and small talk, respond briefly and naturally',
 		vlm: {
 			urlEnvVar: 'VLM_API_URL',
 			model: 'VL-Qwen3.6-35B-A3B',
 			defaultParams: {
 				top_k: 50,
 				top_p: 0.9,
-				temperature: 0.7,
+				temperature: 0.3,  // Lower temperature for more focused, factual responses
 				max_tokens: 500
 			}
 		},
@@ -62,7 +62,7 @@ module.exports = {
 			urlEnvVar: 'GLM_API_URL',
 			model: 'crm-di-glm47b_30b_it',
 			defaultParams: {
-				temperature: 0.7,
+				temperature: 0.3,  // Lower temperature for more focused, factual responses
 				max_tokens: 500,
 				stream: false
 			}
