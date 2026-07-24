@@ -107,6 +107,11 @@ async function callGlm({ messages, language }) {
 		body: JSON.stringify({
 			model: config.llm.glm.model,
 			messages: chatMessages,
+			// This is a thinking-capable model — without explicitly disabling
+			// it, the chain-of-thought reasoning ends up dumped straight into
+			// `content` instead of the separate `reasoning` field, which is
+			// why answers were coming back as raw internal monologue.
+			chat_template_kwargs: { enable_thinking: false },
 			...config.llm.glm.defaultParams
 		})
 	});
