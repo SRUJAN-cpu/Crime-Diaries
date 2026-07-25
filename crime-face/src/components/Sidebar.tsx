@@ -271,7 +271,7 @@ export function Sidebar({
               >
                 {isRenaming ? (
                   <>
-                    <span className="material-symbols-outlined text-sm font-bold animate-spin">loading</span>
+                    <span className="material-symbols-outlined text-sm font-bold animate-spin"></span>
                     <span>Renaming...</span>
                   </>
                 ) : (
