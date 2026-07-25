@@ -6,7 +6,7 @@ interface SidebarProps {
   activeSessionId?: string;
   onNewChat: () => void;
   onSelectSession: (sessionId: string) => void;
-  onRenameSession: (sessionId: string, name: string) => void;
+  onRenameSession: (sessionId: string, name: string) => Promise<void>;
   onDeleteSession: (sessionId: string) => Promise<boolean>;
   userLabel: string;
   onSignOut: () => void;
@@ -30,6 +30,7 @@ export function Sidebar({
   // Custom modal states
   const [renameSessionId, setRenameSessionId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
   const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null);
 
   const handleOpenMenu = (event: React.MouseEvent<HTMLElement>, sessionId: string) => {
@@ -47,7 +48,7 @@ export function Sidebar({
     if (!sessionIdForMenu) return;
     const session = sessions.find((s) => s.session_id === sessionIdForMenu);
     setRenameSessionId(sessionIdForMenu);
-    setRenameValue(session?.displayName || session?.last_message || 'New Chat');
+    setRenameValue(session?.displayName || 'New Chat');
     handleCloseMenu();
   };
 
@@ -122,9 +123,7 @@ export function Sidebar({
                         {isActive ? "chat_bubble" : "history"}
                       </span>
                       <span className="truncate flex-1">
-                        {session.displayName ||
-                          session.last_message ||
-                          "New Chat"}
+                        {session.displayName || "New Chat"}
                       </span>
                       <button
                         aria-label="More options"
@@ -247,24 +246,40 @@ export function Sidebar({
             <div className="px-6 py-5 bg-surface-dim flex justify-end items-center gap-3">
               <button
                 type="button"
+                disabled={isRenaming}
                 onClick={() => setRenameSessionId(null)}
-                className="px-5 py-2.5 rounded-full border border-outline text-on-surface font-semibold text-sm hover:bg-surface-variant transition-colors active:scale-95"
+                className="px-5 py-2.5 rounded-full border border-outline text-on-surface font-semibold text-sm hover:bg-surface-variant transition-colors active:scale-95 disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                disabled={!renameValue.trim()}
-                onClick={() => {
-                  onRenameSession(renameSessionId, renameValue.trim());
-                  setRenameSessionId(null);
+                disabled={!renameValue.trim() || isRenaming}
+                onClick={async () => {
+                  setIsRenaming(true);
+                  try {
+                    await onRenameSession(renameSessionId, renameValue.trim());
+                    setRenameSessionId(null);
+                  } catch (err) {
+                    console.error('Rename error:', err);
+                    alert('Failed to rename: ' + (err instanceof Error ? err.message : String(err)));
+                  } finally {
+                    setIsRenaming(false);
+                  }
                 }}
                 className="px-7 py-2.5 rounded-full bg-primary text-on-primary font-bold text-sm shadow-md hover:bg-[#B38713] transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
               >
-                <span>Rename</span>
-                <span className="material-symbols-outlined text-sm font-bold">
-                  check
-                </span>
+                {isRenaming ? (
+                  <>
+                    <span className="material-symbols-outlined text-sm font-bold animate-spin">loading</span>
+                    <span>Renaming...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Rename</span>
+                    <span className="material-symbols-outlined text-sm font-bold">check</span>
+                  </>
+                )}
               </button>
             </div>
           </section>

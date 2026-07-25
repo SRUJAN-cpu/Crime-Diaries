@@ -144,8 +144,7 @@ async function getHistoryForUser(catalystApp, catalystUserId, { sessionId, limit
  * Groups a user's message history into a list of past sessions, most recent first.
  * Note: This function retrieves the most recent 500 messages (across all sessions) to
  * build the session list. For sessions with more than 500 messages, the message count
- * will be an approximation and the name will be the most recent system message in the
- * batch (if any).
+ * will be an approximation. Prioritizes chat_name from session_metadata as displayName.
  * @param {import('zcatalyst-sdk-node/lib/catalyst-app').CatalystApp} catalystApp
  * @param {string} catalystUserId
  */
@@ -164,49 +163,46 @@ async function listSessions(catalystApp, catalystUserId) {
 				session_id: sessionId,
 				message_count: 1,
 				last_message_time: createdTime,
-				last_message: msg.content,
-				name: msg.role === 'system' ? msg.content : ''
+				last_message: msg.content
 			});
 		} else {
 			// We've seen this session before in the batch (this message is older than the last one we saw)
 			existing.message_count += 1;
-			// If we haven't set a name yet (i.e., no system message encountered so far) and this is a system message, set it
-			if (!existing.name && msg.role === 'system') {
-				existing.name = msg.content;
-			}
-			// Do not update last_message_time or last_message because we already have a more recent one
 		}
 	}
 
-	// Convert to array, prioritize name, fallback to last_message, then 'New Chat'
-	const sessionsArray = Array.from(sessions.values()).map(sess => ({
-		...sess,
-		displayName: sess.name || sess.last_message || 'New Chat'
-	}));
+	// Fetch session_metadata for each session to get chat_name
+	const sessionsArray = [];
+	for (const sess of sessions.values()) {
+		try {
+			const metadata = await getSessionMetadata(catalystApp, sess.session_id);
+			sessionsArray.push({
+				...sess,
+				displayName: metadata?.chat_name || sess.last_message || 'New Chat'
+			});
+		} catch (err) {
+			// If metadata doesn't exist, use last_message as fallback
+			console.log(`[INFO] No metadata for session ${sess.session_id}, using last_message as displayName`);
+			sessionsArray.push({
+				...sess,
+				displayName: sess.last_message || 'New Chat'
+			});
+		}
+	}
+
 	return sessionsArray.sort((a, b) => b.last_message_time - a.last_message_time);
 }
 
 /**
- * Renames a chat session by inserting a system message with the new name.
- * The most recent system message (by timestamp) is used as the display name.
+ * Renames a chat session by updating the session_metadata table.
  * @param {import('zcatalyst-sdk-node/lib/catalyst-app').CatalystApp} catalystApp
  * @param {string} catalystUserId
  * @param {string} sessionId
  * @param {string} newName
  */
 async function renameSession(catalystApp, catalystUserId, sessionId, newName) {
-	const table = await catalystApp.nosql().table(config.tables.conversation.name);
-	const now = Date.now();
-	const item = {
-		catalyst_user_id: catalystUserId,
-		updated_at: new Date(now).toISOString(),
-		session_id: sessionId,
-		role: 'system',
-		content: newName
-	};
-	await table.insertItems({
-		item: NoSQLItem.from(withoutUndefined(item))
-	});
+	// Update session_metadata with the new chat_name
+	await updateSessionMetadata(catalystApp, sessionId, { chat_name: newName });
 }
 
 /**

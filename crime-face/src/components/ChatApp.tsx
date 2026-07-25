@@ -38,10 +38,11 @@ export function ChatApp({ user, onSignOut }: ChatAppProps) {
         const err = await response.json();
         throw new Error(err.error || 'Failed to rename chat');
       }
+      // Refetch to update the display name
       await refetchSessions();
     } catch (err) {
       console.error('Rename failed:', err);
-      alert('Could not rename chat: ' + (err instanceof Error ? err.message : String(err)));
+      throw err;
     }
   };
 
