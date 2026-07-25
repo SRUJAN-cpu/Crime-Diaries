@@ -7,9 +7,10 @@ interface SidebarProps {
   onNewChat: () => void;
   onSelectSession: (sessionId: string) => void;
   onRenameSession: (sessionId: string, name: string) => void;
-  onDeleteSession: (sessionId: string) => void;
+  onDeleteSession: (sessionId: string) => Promise<boolean>;
   userLabel: string;
   onSignOut: () => void;
+  isDeleting: boolean;
 }
 
 export function Sidebar({
@@ -20,7 +21,8 @@ export function Sidebar({
   onRenameSession,
   onDeleteSession,
   userLabel,
-  onSignOut
+  onSignOut,
+  isDeleting
 }: SidebarProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [sessionIdForMenu, setSessionIdForMenu] = useState<string | null>(null);
@@ -55,17 +57,30 @@ export function Sidebar({
     handleCloseMenu();
   };
 
+  const handleConfirmDelete = async () => {
+    if (!deleteSessionId || isDeleting) return;
+    const didDelete = await onDeleteSession(deleteSessionId);
+    if (didDelete) {
+      setDeleteSessionId(null);
+    }
+  };
+
   return (
     <>
       <aside className="w-[280px] h-screen fixed left-0 top-0 flex flex-col border-r border-outline-variant bg-surface-container-low z-50 bottom-0 select-none font-body text-on-surface">
         <div className="p-6 flex flex-col flex-1 min-h-0">
           {/* Brand Header */}
           <div className="flex items-center gap-3 mb-8">
-            <span className="material-symbols-outlined text-primary text-3xl" style={{ fontVariationSettings: '"FILL" 1' }}>
+            <span
+              className="material-symbols-outlined text-primary text-3xl"
+              style={{ fontVariationSettings: '"FILL" 1' }}
+            >
               security
             </span>
             <div>
-              <h1 className="font-headline text-xl font-bold text-primary">Crime Diaries</h1>
+              <h1 className="font-headline text-xl font-bold text-primary">
+                Crime Diaries
+              </h1>
             </div>
           </div>
 
@@ -99,22 +114,26 @@ export function Sidebar({
                       onClick={() => onSelectSession(session.session_id)}
                       className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors group cursor-pointer ${
                         isActive
-                          ? 'text-primary font-bold border-l-4 border-primary bg-primary-fixed rounded-r-lg'
-                          : 'text-sm text-on-surface-variant hover:bg-surface-container-high'
+                          ? "text-primary font-bold border-l-4 border-primary bg-primary-fixed rounded-r-lg"
+                          : "text-sm text-on-surface-variant hover:bg-surface-container-high"
                       }`}
                     >
                       <span className="material-symbols-outlined text-lg">
-                        {isActive ? 'chat_bubble' : 'history'}
+                        {isActive ? "chat_bubble" : "history"}
                       </span>
                       <span className="truncate flex-1">
-                        {session.displayName || session.last_message || 'New Chat'}
+                        {session.displayName ||
+                          session.last_message ||
+                          "New Chat"}
                       </span>
                       <button
                         aria-label="More options"
                         onClick={(e) => handleOpenMenu(e, session.session_id)}
                         className="p-1 hover:bg-surface-container-highest rounded transition-colors group-hover:block hidden"
                       >
-                        <span className="material-symbols-outlined text-sm">more_vert</span>
+                        <span className="material-symbols-outlined text-sm">
+                          more_vert
+                        </span>
                       </button>
                     </div>
                   );
@@ -130,7 +149,10 @@ export function Sidebar({
             className="absolute bg-surface border border-outline-variant rounded-lg p-1.5 shadow-lg z-[999] min-w-[120px] text-sm font-label text-on-surface"
             style={{
               top: anchorEl.getBoundingClientRect().bottom + window.scrollY + 4,
-              left: Math.max(16, anchorEl.getBoundingClientRect().left + window.scrollX - 80),
+              left: Math.max(
+                16,
+                anchorEl.getBoundingClientRect().left + window.scrollX - 80,
+              ),
             }}
             onMouseLeave={handleCloseMenu}
           >
@@ -169,14 +191,21 @@ export function Sidebar({
           <section className="bg-surface w-full max-w-md rounded-lg shadow-2xl border border-outline-variant overflow-hidden transform transition-all duration-300 scale-100 text-on-surface font-body">
             {/* Header */}
             <div className="px-6 pt-6 pb-2">
-              <h2 className="text-2xl font-bold tracking-tight font-headline">Rename Investigation</h2>
-              <p className="text-sm text-on-surface-variant mt-1 font-medium">Update the identifier for this case file.</p>
+              <h2 className="text-2xl font-bold tracking-tight font-headline">
+                Rename Investigation
+              </h2>
+              <p className="text-sm text-on-surface-variant mt-1 font-medium">
+                Update the identifier for this case file.
+              </p>
             </div>
             {/* Body */}
             <div className="px-6 py-4">
               <div className="space-y-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-on-surface-variant uppercase tracking-widest px-1" htmlFor="investigation-name">
+                  <label
+                    className="text-xs font-bold text-on-surface-variant uppercase tracking-widest px-1"
+                    htmlFor="investigation-name"
+                  >
                     Current Name
                   </label>
                   <div className="relative">
@@ -187,20 +216,29 @@ export function Sidebar({
                       value={renameValue}
                       onChange={(e) => setRenameValue(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' && renameValue.trim()) {
+                        if (e.key === "Enter" && renameValue.trim()) {
                           onRenameSession(renameSessionId, renameValue.trim());
                           setRenameSessionId(null);
                         }
                       }}
                       autoFocus
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline-variant">edit</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline-variant">
+                      edit
+                    </span>
                   </div>
                 </div>
                 <div className="p-3 bg-surface-container-high rounded-lg flex gap-3 items-start">
-                  <span className="material-symbols-outlined text-primary text-sm mt-0.5" style={{ fontVariationSettings: '"FILL" 1' }}>info</span>
+                  <span
+                    className="material-symbols-outlined text-primary text-sm mt-0.5"
+                    style={{ fontVariationSettings: '"FILL" 1' }}
+                  >
+                    info
+                  </span>
                   <p className="text-[11px] text-on-surface-variant leading-relaxed">
-                    Renaming will update all associated audit logs and internal tracking markers. This action is recorded in the system history.
+                    Renaming will update all associated audit logs and internal
+                    tracking markers. This action is recorded in the system
+                    history.
                   </p>
                 </div>
               </div>
@@ -224,7 +262,9 @@ export function Sidebar({
                 className="px-7 py-2.5 rounded-full bg-primary text-on-primary font-bold text-sm shadow-md hover:bg-[#B38713] transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
               >
                 <span>Rename</span>
-                <span className="material-symbols-outlined text-sm font-bold">check</span>
+                <span className="material-symbols-outlined text-sm font-bold">
+                  check
+                </span>
               </button>
             </div>
           </section>
@@ -241,34 +281,51 @@ export function Sidebar({
               {/* Title */}
               <div className="flex items-center mb-4">
                 <div className="w-10 h-10 rounded-full bg-error-container flex items-center justify-center mr-4">
-                  <span className="material-symbols-outlined text-error text-xl" style={{ fontVariationSettings: '"FILL" 1' }}>warning</span>
+                  <span
+                    className="material-symbols-outlined text-error text-xl"
+                    style={{ fontVariationSettings: '"FILL" 1' }}
+                  >
+                    warning
+                  </span>
                 </div>
-                <h2 className="text-xl font-bold tracking-tight font-headline">Delete Investigation</h2>
+                <h2 className="text-xl font-bold tracking-tight font-headline">
+                  Delete Investigation
+                </h2>
               </div>
               {/* Warning message */}
               <p className="text-on-surface-variant text-sm leading-relaxed mb-8">
-                Are you sure you want to permanently delete this investigation? This action cannot be undone.
+                Are you sure you want to permanently delete this investigation?
+                This action cannot be undone.
               </p>
               {/* Buttons */}
               <div className="flex justify-end items-center space-x-3">
                 <button
                   type="button"
+                  disabled={isDeleting}
                   onClick={() => setDeleteSessionId(null)}
-                  className="px-5 py-2 text-sm font-semibold text-on-surface-variant hover:bg-surface-container rounded-lg border border-outline-variant transition-all active:scale-95"
+                  className="px-5 py-2 text-sm font-semibold text-on-surface-variant hover:bg-surface-container rounded-lg border border-outline-variant transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onDeleteSession(deleteSessionId);
-                    setDeleteSessionId(null);
-                  }}
-                  className="px-6 py-2 text-sm font-bold bg-error text-on-error hover:opacity-90 shadow-md rounded-lg transition-all active:scale-95 flex items-center gap-1.5"
-                >
-                  <span className="material-symbols-outlined text-sm font-bold">delete</span>
-                  Delete
-                </button>
+                {isDeleting ? (
+                  <button disabled className="delete-btn delete-loading">
+                    <span className="material-symbols-outlined">
+                      hourglass_empty
+                    </span>
+                    Deleting...
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleConfirmDelete}
+                    className="px-6 py-2 text-sm font-bold bg-error text-on-error hover:opacity-90 shadow-md rounded-lg transition-all active:scale-95 flex items-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-sm font-bold">
+                      delete
+                    </span>
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
           </div>

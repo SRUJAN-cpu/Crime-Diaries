@@ -21,7 +21,9 @@ export function ChatApp({ user, onSignOut }: ChatAppProps) {
     startNewChat,
     openSession,
     send,
-    refetchSessions
+    refetchSessions,
+    isDeleting,
+    setIsDeleting
   } = useChat();
 
   const handleRenameSession = async (sessionId: string, name: string) => {
@@ -43,7 +45,8 @@ export function ChatApp({ user, onSignOut }: ChatAppProps) {
     }
   };
 
-  const handleDeleteSession = async (sessionId: string) => {
+  const handleDeleteSession = async (sessionId: string): Promise<boolean> => {
+    setIsDeleting(true);
     try {
       const response = await fetch(`/server/crime_diaries_function/sessions/${sessionId}`, {
         method: 'DELETE',
@@ -58,9 +61,13 @@ export function ChatApp({ user, onSignOut }: ChatAppProps) {
       if (activeSessionId === sessionId) {
         startNewChat();
       }
+      return true;
     } catch (err) {
       console.error('Delete failed:', err);
       alert('Could not delete chat: ' + (err instanceof Error ? err.message : String(err)));
+      return false;
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -75,6 +82,7 @@ export function ChatApp({ user, onSignOut }: ChatAppProps) {
         onDeleteSession={handleDeleteSession}
         userLabel={user.first_name || user.email_id}
         onSignOut={onSignOut}
+        isDeleting={isDeleting}
       />
       <ChatView
         messages={messages}

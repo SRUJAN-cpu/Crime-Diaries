@@ -22,6 +22,7 @@ export function useChat() {
   const [isSending, setIsSending] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [language, setLanguageState] = useState<Language>(loadStoredLanguage);
 
   const setLanguage = useCallback((next: Language) => {
@@ -107,6 +108,8 @@ export function useChat() {
     startNewChat,
     openSession,
     send,
-    refetchSessions
+    refetchSessions,
+    isDeleting,
+    setIsDeleting
   };
 }
