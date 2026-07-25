@@ -268,11 +268,133 @@ async function deleteSession(catalystApp, catalystUserId, sessionId) {
 	await Promise.all(deletePromises);
 }
 
+/**
+ * Creates or updates session metadata (chat name, description, etc.)
+ * @param {import('zcatalyst-sdk-node/lib/catalyst-app').CatalystApp} catalystApp
+ * @param {string} sessionId
+ * @param {string} catalystUserId
+ * @param {{ chat_name?: string, description?: string, tags?: string[], case_type?: string, priority?: string }} metadata
+ */
+async function saveSessionMetadata(catalystApp, sessionId, catalystUserId, metadata) {
+	const table = await catalystApp.nosql().table('session_metadata');
+	const now = new Date().toISOString();
+
+	const item = NoSQLItem.from(
+		withoutUndefined({
+			session_id: sessionId,
+			catalyst_user_id: catalystUserId,
+			chat_name: metadata.chat_name,
+			description: metadata.description,
+			tags: metadata.tags ? JSON.stringify(metadata.tags) : undefined,
+			case_type: metadata.case_type,
+			priority: metadata.priority,
+			is_archived: 'no',
+			created_time: now,
+			updated_time: now,
+			last_accessed: now
+		})
+	);
+
+	await table.insertItems({ item });
+}
+
+/**
+ * Retrieves session metadata
+ * @param {import('zcatalyst-sdk-node/lib/catalyst-app').CatalystApp} catalystApp
+ * @param {string} sessionId
+ */
+async function getSessionMetadata(catalystApp, sessionId) {
+	const table = await catalystApp.nosql().table('session_metadata');
+	const key = NoSQLItem.from({ session_id: sessionId });
+
+	try {
+		const result = await table.fetchItem({ keys: [key] });
+		const item = result.get && result.get[0] && result.get[0].item;
+		if (item) {
+			const data = item.to();
+			if (data.tags && typeof data.tags === 'string') {
+				data.tags = JSON.parse(data.tags);
+			}
+			return data;
+		}
+		return null;
+	} catch (err) {
+		console.warn('Error fetching session metadata:', err.message);
+		return null;
+	}
+}
+
+/**
+ * Updates session metadata
+ * @param {import('zcatalyst-sdk-node/lib/catalyst-app').CatalystApp} catalystApp
+ * @param {string} sessionId
+ * @param {{ chat_name?: string, description?: string, priority?: string, is_archived?: string }} updates
+ */
+async function updateSessionMetadata(catalystApp, sessionId, updates) {
+	const table = await catalystApp.nosql().table('session_metadata');
+	const key = NoSQLItem.from({ session_id: sessionId });
+	const now = new Date().toISOString();
+
+	const updateAttrs = [];
+
+	if (updates.chat_name !== undefined) {
+		updateAttrs.push({
+			operation_type: NoSQLUpdateOperationType.PUT,
+			attribute_path: ['chat_name'],
+			update_value: NoSQLMarshall.makeString(updates.chat_name)
+		});
+	}
+
+	if (updates.description !== undefined) {
+		updateAttrs.push({
+			operation_type: NoSQLUpdateOperationType.PUT,
+			attribute_path: ['description'],
+			update_value: NoSQLMarshall.makeString(updates.description)
+		});
+	}
+
+	if (updates.priority !== undefined) {
+		updateAttrs.push({
+			operation_type: NoSQLUpdateOperationType.PUT,
+			attribute_path: ['priority'],
+			update_value: NoSQLMarshall.makeString(updates.priority)
+		});
+	}
+
+	if (updates.is_archived !== undefined) {
+		updateAttrs.push({
+			operation_type: NoSQLUpdateOperationType.PUT,
+			attribute_path: ['is_archived'],
+			update_value: NoSQLMarshall.makeString(updates.is_archived)
+		});
+	}
+
+	updateAttrs.push({
+		operation_type: NoSQLUpdateOperationType.PUT,
+		attribute_path: ['updated_time'],
+		update_value: NoSQLMarshall.makeString(now)
+	});
+
+	updateAttrs.push({
+		operation_type: NoSQLUpdateOperationType.PUT,
+		attribute_path: ['last_accessed'],
+		update_value: NoSQLMarshall.makeString(now)
+	});
+
+	await table.updateItems({
+		keys: key,
+		update_attributes: updateAttrs
+	});
+}
+
 module.exports = {
 	ensureUserRecord,
 	saveMessage,
 	getHistoryForUser,
 	listSessions,
 	renameSession,
-	deleteSession
+	deleteSession,
+	saveSessionMetadata,
+	getSessionMetadata,
+	updateSessionMetadata
 };

@@ -41,6 +41,35 @@ async function addAssistantMessage(catalystApp, messages, { catalystUserId, sess
 }
 
 /**
+ * Save an explainable response with full metadata
+ * @param {import('zcatalyst-sdk-node/lib/catalyst-app').CatalystApp} catalystApp
+ * @param {string} catalystUserId
+ * @param {string} sessionId
+ * @param {Object} explainableResponse - from explainableAI module
+ * @returns {Promise<void>}
+ */
+async function saveExplainableResponse(catalystApp, catalystUserId, sessionId, explainableResponse) {
+	const table = await catalystApp.nosql().table('conversation');
+	const { NoSQLItem } = require('zcatalyst-sdk-node/lib/no-sql');
+	const createdAt = Date.now();
+
+	const item = NoSQLItem.from({
+		catalyst_user_id: catalystUserId,
+		updated_at: new Date(createdAt).toISOString(),
+		session_id: sessionId,
+		role: 'assistant',
+		content: explainableResponse.content,
+		source: explainableResponse.source,
+		confidence: explainableResponse.confidence,
+		evidence: JSON.stringify(explainableResponse.evidence || []),
+		reasoning: JSON.stringify(explainableResponse.reasoning || []),
+		entities: JSON.stringify(explainableResponse.entities || {})
+	});
+
+	await table.insertItems({ item });
+}
+
+/**
  * Converts conversation-table rows (which carry extra columns like
  * created_time/session_id) into a plain { role, content } messages array.
  * @param {Array<{ role: string, content: string }>} historyRows
@@ -65,4 +94,4 @@ async function addSystemMessage(catalystApp, messages, { catalystUserId, session
 	return messages;
 }
 
-module.exports = { addUserMessage, addAssistantMessage, addSystemMessage, toApiMessages };
+module.exports = { addUserMessage, addAssistantMessage, addSystemMessage, toApiMessages, saveExplainableResponse };
