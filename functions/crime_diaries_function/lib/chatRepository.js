@@ -43,6 +43,7 @@ async function ensureUserRecord(catalystApp, catalystUser) {
 	await table.insertItems({
 		item: NoSQLItem.from(
 			withoutUndefined({
+				users: catalystUser.user_id,
 				catalyst_user_id: catalystUser.user_id,
 				email: catalystUser.email_id,
 				first_name: catalystUser.first_name,
@@ -65,6 +66,7 @@ async function saveMessage(catalystApp, { catalystUserId, sessionId, role, conte
 	const table = await catalystApp.nosql().table(config.tables.conversation.name);
 	const createdAt = createdTime ?? Date.now();
 
+	console.log(`[SAVE MESSAGE] Inserting message - user: ${catalystUserId}, session: ${sessionId}, role: ${role}`);
 	await table.insertItems({
 		item: NoSQLItem.from(
 			withoutUndefined({
@@ -79,6 +81,7 @@ async function saveMessage(catalystApp, { catalystUserId, sessionId, role, conte
 			})
 		)
 	});
+	console.log(`[SAVE MESSAGE] ✓ Message inserted successfully`);
 
 	return createdAt;
 }
@@ -91,7 +94,7 @@ async function saveMessage(catalystApp, { catalystUserId, sessionId, role, conte
  * @param {string} catalystUserId
  * @param {{ sessionId?: string, limit?: number }} [options]
  */
-async function getHistoryForUser(catalystApp, catalystUserId, { sessionId, limit } = {}) {
+async function getHistoryForUser(catalystApp, catalystUserId, { sessionId, limit, forwardScan = true } = {}) {
 	const table = await catalystApp.nosql().table(config.tables.conversation.name);
 
 	const query = {
@@ -100,7 +103,7 @@ async function getHistoryForUser(catalystApp, catalystUserId, { sessionId, limit
 			operator: NoSQLOperator.EQUALS,
 			value: NoSQLMarshall.makeString(catalystUserId)
 		},
-		forward_scan: true
+		forward_scan: forwardScan
 	};
 
 	if (sessionId) {
@@ -149,7 +152,7 @@ async function getHistoryForUser(catalystApp, catalystUserId, { sessionId, limit
  * @param {string} catalystUserId
  */
 async function listSessions(catalystApp, catalystUserId) {
-	// Get the most recent 500 messages (descending order by updated_at)
+	// Get the most recent 500 messages (newest first via forwardScan: false)
 	const messages = await getHistoryForUser(catalystApp, catalystUserId, { limit: 500, forwardScan: false });
 
 	const sessions = new Map();
@@ -157,7 +160,7 @@ async function listSessions(catalystApp, catalystUserId) {
 		const sessionId = msg.session_id;
 		const existing = sessions.get(sessionId);
 		if (!existing) {
-			// First time seeing this session in the batch (most recent message)
+			// First time seeing this session — this IS the most recent message (newest-first scan)
 			const createdTime = new Date(msg.updated_at).getTime();
 			sessions.set(sessionId, {
 				session_id: sessionId,
@@ -166,7 +169,7 @@ async function listSessions(catalystApp, catalystUserId) {
 				last_message: msg.content
 			});
 		} else {
-			// We've seen this session before in the batch (this message is older than the last one we saw)
+			// Older message for same session — only increment count
 			existing.message_count += 1;
 		}
 	}
@@ -174,10 +177,10 @@ async function listSessions(catalystApp, catalystUserId) {
 	// Fetch session_metadata for each session to get chat_name
 	const sessionsArray = [];
 	for (const sess of sessions.values()) {
-		const metadata = await getSessionMetadata(catalystApp, sess.session_id);
+		const metadata = await getSessionMetadata(catalystApp, catalystUserId, sess.session_id);
 		sessionsArray.push({
 			...sess,
-			displayName: metadata?.chat_name || sess.last_message || 'New Chat'
+			displayName: metadata?.chat_name || 'New Chat'
 		});
 	}
 
@@ -186,14 +189,32 @@ async function listSessions(catalystApp, catalystUserId) {
 
 /**
  * Renames a chat session by updating the session_metadata table.
+ * Uses UPSERT pattern: creates metadata if it doesn't exist, then updates it.
  * @param {import('zcatalyst-sdk-node/lib/catalyst-app').CatalystApp} catalystApp
  * @param {string} catalystUserId
  * @param {string} sessionId
  * @param {string} newName
  */
 async function renameSession(catalystApp, catalystUserId, sessionId, newName) {
-	// Update session_metadata with the new chat_name
-	await updateSessionMetadata(catalystApp, sessionId, { chat_name: newName });
+	try {
+		// Check if metadata record exists
+		const existing = await getSessionMetadata(catalystApp, catalystUserId, sessionId);
+		
+		if (!existing) {
+			// Record doesn't exist - create it first with the new name
+			await saveSessionMetadata(catalystApp, sessionId, catalystUserId, {
+				chat_name: newName,
+				priority: 'medium',
+				is_archived: 'no'
+			});
+		} else {
+			// Record exists - update it
+			await updateSessionMetadata(catalystApp, catalystUserId, sessionId, { chat_name: newName });
+		}
+	} catch (err) {
+		console.error('Failed to rename session:', err.message);
+		throw err;
+	}
 }
 
 /**
@@ -203,56 +224,77 @@ async function renameSession(catalystApp, catalystUserId, sessionId, newName) {
  * @param {string} sessionId
  */
 async function deleteSession(catalystApp, catalystUserId, sessionId) {
-	const table = await catalystApp.nosql().table(config.tables.conversation.name);
-	const messages = await getHistoryForUser(catalystApp, catalystUserId, { sessionId });
-	// Delete in batches to reduce number of requests
-	const deletePromises = [];
-	const batchSize = 25; // Adjust batch size as needed
-
-	// Filter out any messages that don't have required fields
-	const validMessages = messages.filter(msg =>
-		msg &&
-		typeof msg === 'object' &&
-		msg.hasOwnProperty('catalyst_user_id') &&
-		msg.catalyst_user_id !== null &&
-		msg.catalyst_user_id !== undefined &&
-		msg.hasOwnProperty('updated_at') &&
-		msg.updated_at !== null &&
-		msg.updated_at !== undefined
-	);
-
-	if (validMessages.length === 0) {
-		// No valid messages to delete, but this is not an error
-		return;
-	}
-
-	for (let i = 0; i < validMessages.length; i += batchSize) {
-		const batch = validMessages.slice(i, i + batchSize);
-		// deleteItems(...values) is variadic — each argument is one
-		// { keys: <single NoSQLItem> } delete spec, NOT one object holding an
-		// array of keys. Passing an array where a single key item was
-		// expected is exactly what caused "input value is not readable".
-		const deleteSpecs = batch.map(msg => {
-			try {
-				const keyObj = {
-					[config.tables.conversation.partitionKey]: catalystUserId,
-					updated_at: msg.updated_at
-				};
-				const cleanKeyObj = Object.fromEntries(Object.entries(keyObj).filter(([, v]) => v !== undefined));
-				return { keys: NoSQLItem.from(cleanKeyObj) };
-			} catch (keyError) {
-				// If we can't construct a key for this message, skip it rather than failing the whole operation
-				console.warn(`Skipping message due to invalid key:`, keyError);
-				return null;
-			}
-		}).filter((spec) => spec !== null);
-
-		if (deleteSpecs.length > 0) {
-			deletePromises.push(table.deleteItems(...deleteSpecs));
+	try {
+		const table = await catalystApp.nosql().table(config.tables.conversation.name);
+		console.log(`[DELETE] Starting delete for session ${sessionId}`);
+		
+		// Fetch all messages for user (use limit 1000 to get many at once)
+		const allMessages = await getHistoryForUser(catalystApp, catalystUserId, { limit: 1000, forwardScan: true });
+		console.log(`[DELETE] Fetched ${allMessages.length} total messages for user`);
+		
+		// Debug: show what fields are on the first message
+		if (allMessages.length > 0) {
+			console.log(`[DELETE] Sample message fields:`, Object.keys(allMessages[0]));
+			console.log(`[DELETE] Sample message:`, JSON.stringify(allMessages[0], null, 2));
 		}
-	}
+		
+		// Filter to only this session's messages (in case other_condition didn't work)
+		const sessionMessages = allMessages.filter(msg => msg.session_id === sessionId);
+		console.log(`[DELETE] Found ${sessionMessages.length} messages for session ${sessionId}`);
+		
+		if (sessionMessages.length === 0) {
+			console.log(`[DELETE] No messages to delete for session ${sessionId}`);
+			return;
+		}
 
-	await Promise.all(deletePromises);
+		// Validate messages have required keys
+		const validMessages = sessionMessages.filter(msg =>
+			msg &&
+			typeof msg === 'object' &&
+			msg.hasOwnProperty('catalyst_user_id') &&
+			msg.catalyst_user_id !== null &&
+			msg.hasOwnProperty('updated_at') &&
+			msg.updated_at !== null
+		);
+		
+		console.log(`[DELETE] ${validMessages.length} messages passed validation`);
+		
+		if (validMessages.length === 0) {
+			console.warn(`[DELETE] No valid messages to delete`);
+			return;
+		}
+
+		// Delete in batches
+		const deletePromises = [];
+		const batchSize = 25;
+
+		for (let i = 0; i < validMessages.length; i += batchSize) {
+			const batch = validMessages.slice(i, i + batchSize);
+			const deleteSpecs = batch.map(msg => {
+				try {
+					const keyObj = {
+						[config.tables.conversation.partitionKey]: msg.catalyst_user_id,
+						updated_at: msg.updated_at
+					};
+					return { keys: NoSQLItem.from(keyObj) };
+				} catch (keyError) {
+					console.warn(`[DELETE] Skipping message due to invalid key:`, keyError.message);
+					return null;
+				}
+			}).filter((spec) => spec !== null);
+
+			if (deleteSpecs.length > 0) {
+				console.log(`[DELETE] Batch ${Math.floor(i / batchSize) + 1}: Deleting ${deleteSpecs.length} messages`);
+				deletePromises.push(table.deleteItems(...deleteSpecs));
+			}
+		}
+
+		await Promise.all(deletePromises);
+		console.log(`[DELETE] ✓ Successfully deleted ${validMessages.length} messages for session ${sessionId}`);
+	} catch (err) {
+		console.error(`[DELETE] ✗ Failed to delete session ${sessionId}:`, err.message);
+		throw err;
+	}
 }
 
 /**
@@ -294,12 +336,13 @@ async function saveSessionMetadata(catalystApp, sessionId, catalystUserId, metad
  * Retrieves session metadata
  * Returns null if table doesn't exist or metadata not found
  * @param {import('zcatalyst-sdk-node/lib/catalyst-app').CatalystApp} catalystApp
+ * @param {string} catalystUserId
  * @param {string} sessionId
  */
-async function getSessionMetadata(catalystApp, sessionId) {
+async function getSessionMetadata(catalystApp, catalystUserId, sessionId) {
 	try {
 		const table = await catalystApp.nosql().table('session_metadata');
-		const key = NoSQLItem.from({ session_id: sessionId });
+		const key = NoSQLItem.from({ catalyst_user_id: catalystUserId, session_id: sessionId });
 
 		try {
 			const result = await table.fetchItem({ keys: [key] });
@@ -329,10 +372,10 @@ async function getSessionMetadata(catalystApp, sessionId) {
  * @param {string} sessionId
  * @param {{ chat_name?: string, description?: string, priority?: string, is_archived?: string }} updates
  */
-async function updateSessionMetadata(catalystApp, sessionId, updates) {
+async function updateSessionMetadata(catalystApp, catalystUserId, sessionId, updates) {
 	try {
 		const table = await catalystApp.nosql().table('session_metadata');
-		const key = NoSQLItem.from({ session_id: sessionId });
+		const key = NoSQLItem.from({ catalyst_user_id: catalystUserId, session_id: sessionId });
 		const now = new Date().toISOString();
 
 		const updateAttrs = [];

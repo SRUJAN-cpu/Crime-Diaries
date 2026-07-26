@@ -13,6 +13,7 @@ const chatRepository = require('./chatRepository');
  * @param {{ catalystUserId: string, sessionId: string, content: string }} params
  */
 async function addUserMessage(catalystApp, messages, { catalystUserId, sessionId, content }) {
+	console.log(`[SAVE MSG] Saving user message to session: ${sessionId}`);
 	messages.push({ role: 'user', content });
 	await chatRepository.saveMessage(catalystApp, {
 		catalystUserId,
@@ -20,6 +21,7 @@ async function addUserMessage(catalystApp, messages, { catalystUserId, sessionId
 		role: 'user',
 		content
 	});
+	console.log(`[SAVE MSG] ✓ User message saved`);
 	return messages;
 }
 
@@ -49,6 +51,7 @@ async function addAssistantMessage(catalystApp, messages, { catalystUserId, sess
  * @returns {Promise<void>}
  */
 async function saveExplainableResponse(catalystApp, catalystUserId, sessionId, explainableResponse) {
+	console.log(`[SAVE EXPLAINABLE] Saving assistant response to session: ${sessionId}`);
 	const table = await catalystApp.nosql().table('conversation');
 	const { NoSQLItem } = require('zcatalyst-sdk-node/lib/no-sql');
 	const createdAt = Date.now();
@@ -67,6 +70,7 @@ async function saveExplainableResponse(catalystApp, catalystUserId, sessionId, e
 	});
 
 	await table.insertItems({ item });
+	console.log(`[SAVE EXPLAINABLE] ✓ Assistant response saved`);
 }
 
 /**

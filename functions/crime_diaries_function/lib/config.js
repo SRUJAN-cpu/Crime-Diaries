@@ -5,7 +5,7 @@ module.exports = {
 	tables: {
 		user: {
 			name: 'user',
-			partitionKey: 'catalyst_user_id'
+			partitionKey: 'users'
 		},
 		conversation: {
 			// Sort key is `updated_at` (Number) per the actual console schema,

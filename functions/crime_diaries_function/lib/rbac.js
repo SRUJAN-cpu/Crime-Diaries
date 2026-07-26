@@ -77,18 +77,19 @@ const DEFAULT_ROLE = ROLES.INVESTIGATOR;
  */
 async function getUserRole(catalystApp, catalystUser) {
 	try {
-		// Try to fetch user profile with role from user table
-		const userTable = await catalystApp.nosql().table('user');
+		// Fetch user role from investigator_roles table (not user table)
+		const rolesTable = await catalystApp.nosql().table('investigator_roles');
 		const { NoSQLItem } = require('zcatalyst-sdk-node/lib/no-sql');
 		const key = NoSQLItem.from({ catalyst_user_id: catalystUser.user_id });
-		const result = await userTable.fetchItem({ keys: [key] });
-		const user = result?.get?.[0]?.item?.to?.();
+		const result = await rolesTable.fetchItem({ keys: [key] });
+		const roleRecord = result?.get?.[0]?.item?.to?.();
 		
-		if (user?.role && ROLE_PERMISSIONS[user.role]) {
-			return user.role;
+		if (roleRecord?.role && ROLE_PERMISSIONS[roleRecord.role]) {
+			return roleRecord.role;
 		}
 	} catch (err) {
-		console.warn('Could not fetch user role from DB:', err.message);
+		// Table doesn't exist yet or role not found - use default
+		console.debug('Role lookup skipped (investigator_roles table may not exist yet)');
 	}
 	
 	// Default role if not found
