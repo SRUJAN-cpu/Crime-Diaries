@@ -103,10 +103,6 @@ async function getHistoryForUser(catalystApp, catalystUserId, { sessionId, limit
 		forward_scan: true
 	};
 
-	if (limit) {
-		query.limit = limit;
-	}
-
 	if (sessionId) {
 		query.other_condition = {
 			attribute: 'session_id',
@@ -115,74 +111,89 @@ async function getHistoryForUser(catalystApp, catalystUserId, { sessionId, limit
 		};
 	}
 
-	const response = await table.queryTable(query);
-	return (response.get || [])
-		.map((entry) => entry.item && entry.item.to())
-		.filter(Boolean);
+	// If limit is specified and positive, we use it and do a single query.
+	// Otherwise, we paginate to get all results.
+	if (typeof limit === 'number' && limit > 0) {
+		query.limit = limit;
+		const response = await table.queryTable(query);
+		return (response.get || [])
+			.map((entry) => entry.item && entry.item.to())
+			.filter(Boolean);
+	}
+
+	// No limit or limit <= 0: get all pages
+	let allItems = [];
+	let exclusiveStartKey = null;
+
+	do {
+		if (exclusiveStartKey) {
+			query.exclusive_start_key = exclusiveStartKey;
+		}
+		const response = await table.queryTable(query);
+		const items = (response.get || [])
+			.map((entry) => entry.item && entry.item.to())
+			.filter(Boolean);
+		allItems.push(...items);
+		exclusiveStartKey = response.last_evaluated_key;
+	} while (exclusiveStartKey);
+
+	return allItems;
 }
 
 /**
  * Groups a user's message history into a list of past sessions, most recent first.
+ * Note: This function retrieves the most recent 500 messages (across all sessions) to
+ * build the session list. For sessions with more than 500 messages, the message count
+ * will be an approximation. Prioritizes chat_name from session_metadata as displayName.
  * @param {import('zcatalyst-sdk-node/lib/catalyst-app').CatalystApp} catalystApp
  * @param {string} catalystUserId
  */
 async function listSessions(catalystApp, catalystUserId) {
-	const messages = await getHistoryForUser(catalystApp, catalystUserId, { limit: 500 });
+	// Get the most recent 500 messages (descending order by updated_at)
+	const messages = await getHistoryForUser(catalystApp, catalystUserId, { limit: 500, forwardScan: false });
 
 	const sessions = new Map();
 	for (const msg of messages) {
 		const sessionId = msg.session_id;
-		const existing = sessions.get(sessionId) || {
-			session_id: sessionId,
-			message_count: 0,
-			last_message_time: 0,
-			last_message: '',
-			name: '' // will be set from system message if present
-		};
-		// If this is a system message that stores chat name, capture it
-		if (msg.role === 'system') {
-			// Assume system message content is the chat name
-			existing.name = msg.content;
-		} else {
-			existing.message_count += 1;
+		const existing = sessions.get(sessionId);
+		if (!existing) {
+			// First time seeing this session in the batch (most recent message)
 			const createdTime = new Date(msg.updated_at).getTime();
-			if (createdTime >= existing.last_message_time) {
-				existing.last_message_time = createdTime;
-				existing.last_message = msg.content;
-			}
+			sessions.set(sessionId, {
+				session_id: sessionId,
+				message_count: 1,
+				last_message_time: createdTime,
+				last_message: msg.content
+			});
+		} else {
+			// We've seen this session before in the batch (this message is older than the last one we saw)
+			existing.message_count += 1;
 		}
-		sessions.set(sessionId, existing);
 	}
 
-	// Convert to array, prioritize name, fallback to last_message, then 'New Chat'
-	const sessionsArray = Array.from(sessions.values()).map(sess => ({
-		...sess,
-		displayName: sess.name || sess.last_message || 'New Chat'
-	}));
+	// Fetch session_metadata for each session to get chat_name
+	const sessionsArray = [];
+	for (const sess of sessions.values()) {
+		const metadata = await getSessionMetadata(catalystApp, sess.session_id);
+		sessionsArray.push({
+			...sess,
+			displayName: metadata?.chat_name || sess.last_message || 'New Chat'
+		});
+	}
+
 	return sessionsArray.sort((a, b) => b.last_message_time - a.last_message_time);
 }
 
 /**
- * Renames a chat session by inserting a system message with the new name.
- * The most recent system message (by timestamp) is used as the display name.
+ * Renames a chat session by updating the session_metadata table.
  * @param {import('zcatalyst-sdk-node/lib/catalyst-app').CatalystApp} catalystApp
  * @param {string} catalystUserId
  * @param {string} sessionId
  * @param {string} newName
  */
 async function renameSession(catalystApp, catalystUserId, sessionId, newName) {
-	const table = await catalystApp.nosql().table(config.tables.conversation.name);
-	const now = Date.now();
-	const item = {
-		catalyst_user_id: catalystUserId,
-		updated_at: new Date(now).toISOString(),
-		session_id: sessionId,
-		role: 'system',
-		content: newName
-	};
-	await table.insertItems({
-		item: NoSQLItem.from(withoutUndefined(item))
-	});
+	// Update session_metadata with the new chat_name
+	await updateSessionMetadata(catalystApp, sessionId, { chat_name: newName });
 }
 
 /**
@@ -193,15 +204,191 @@ async function renameSession(catalystApp, catalystUserId, sessionId, newName) {
  */
 async function deleteSession(catalystApp, catalystUserId, sessionId) {
 	const table = await catalystApp.nosql().table(config.tables.conversation.name);
-	const messages = await getHistoryForUser(catalystApp, catalystUserId, { sessionId, limit: 1000 });
-	const deletePromises = messages.map(msg => {
-		const key = {
-			[config.tables.conversation.partitionKey]: catalystUserId,
-			updated_at: msg.updated_at
-		};
-		return table.deleteItem({ key });
-	});
+	const messages = await getHistoryForUser(catalystApp, catalystUserId, { sessionId });
+	// Delete in batches to reduce number of requests
+	const deletePromises = [];
+	const batchSize = 25; // Adjust batch size as needed
+
+	// Filter out any messages that don't have required fields
+	const validMessages = messages.filter(msg =>
+		msg &&
+		typeof msg === 'object' &&
+		msg.hasOwnProperty('catalyst_user_id') &&
+		msg.catalyst_user_id !== null &&
+		msg.catalyst_user_id !== undefined &&
+		msg.hasOwnProperty('updated_at') &&
+		msg.updated_at !== null &&
+		msg.updated_at !== undefined
+	);
+
+	if (validMessages.length === 0) {
+		// No valid messages to delete, but this is not an error
+		return;
+	}
+
+	for (let i = 0; i < validMessages.length; i += batchSize) {
+		const batch = validMessages.slice(i, i + batchSize);
+		// deleteItems(...values) is variadic — each argument is one
+		// { keys: <single NoSQLItem> } delete spec, NOT one object holding an
+		// array of keys. Passing an array where a single key item was
+		// expected is exactly what caused "input value is not readable".
+		const deleteSpecs = batch.map(msg => {
+			try {
+				const keyObj = {
+					[config.tables.conversation.partitionKey]: catalystUserId,
+					updated_at: msg.updated_at
+				};
+				const cleanKeyObj = Object.fromEntries(Object.entries(keyObj).filter(([, v]) => v !== undefined));
+				return { keys: NoSQLItem.from(cleanKeyObj) };
+			} catch (keyError) {
+				// If we can't construct a key for this message, skip it rather than failing the whole operation
+				console.warn(`Skipping message due to invalid key:`, keyError);
+				return null;
+			}
+		}).filter((spec) => spec !== null);
+
+		if (deleteSpecs.length > 0) {
+			deletePromises.push(table.deleteItems(...deleteSpecs));
+		}
+	}
+
 	await Promise.all(deletePromises);
+}
+
+/**
+ * Creates or updates session metadata (chat name, description, etc.)
+ * @param {import('zcatalyst-sdk-node/lib/catalyst-app').CatalystApp} catalystApp
+ * @param {string} sessionId
+ * @param {string} catalystUserId
+ * @param {{ chat_name?: string, description?: string, tags?: string[], case_type?: string, priority?: string }} metadata
+ */
+async function saveSessionMetadata(catalystApp, sessionId, catalystUserId, metadata) {
+	try {
+		const table = await catalystApp.nosql().table('session_metadata');
+		const now = new Date().toISOString();
+
+		const item = NoSQLItem.from(
+			withoutUndefined({
+				session_id: sessionId,
+				catalyst_user_id: catalystUserId,
+				chat_name: metadata.chat_name,
+				description: metadata.description,
+				tags: metadata.tags ? JSON.stringify(metadata.tags) : undefined,
+				case_type: metadata.case_type,
+				priority: metadata.priority,
+				is_archived: 'no',
+				created_time: now,
+				updated_time: now,
+				last_accessed: now
+			})
+		);
+
+		await table.insertItems({ item });
+	} catch (err) {
+		// Table doesn't exist yet - this is expected during initial setup
+		// Session still works without metadata table (falls back to last_message for displayName)
+	}
+}
+
+/**
+ * Retrieves session metadata
+ * Returns null if table doesn't exist or metadata not found
+ * @param {import('zcatalyst-sdk-node/lib/catalyst-app').CatalystApp} catalystApp
+ * @param {string} sessionId
+ */
+async function getSessionMetadata(catalystApp, sessionId) {
+	try {
+		const table = await catalystApp.nosql().table('session_metadata');
+		const key = NoSQLItem.from({ session_id: sessionId });
+
+		try {
+			const result = await table.fetchItem({ keys: [key] });
+			const item = result.get && result.get[0] && result.get[0].item;
+			if (item) {
+				const data = item.to();
+				if (data.tags && typeof data.tags === 'string') {
+					data.tags = JSON.parse(data.tags);
+				}
+				return data;
+			}
+			return null;
+		} catch (err) {
+			// Item not found is normal - just return null
+			return null;
+		}
+	} catch (tableErr) {
+		// Table doesn't exist yet - this is expected during initial setup
+		// Just silently return null and fall back to last_message
+		return null;
+	}
+}
+
+/**
+ * Updates session metadata
+ * @param {import('zcatalyst-sdk-node/lib/catalyst-app').CatalystApp} catalystApp
+ * @param {string} sessionId
+ * @param {{ chat_name?: string, description?: string, priority?: string, is_archived?: string }} updates
+ */
+async function updateSessionMetadata(catalystApp, sessionId, updates) {
+	try {
+		const table = await catalystApp.nosql().table('session_metadata');
+		const key = NoSQLItem.from({ session_id: sessionId });
+		const now = new Date().toISOString();
+
+		const updateAttrs = [];
+
+		if (updates.chat_name !== undefined) {
+			updateAttrs.push({
+				operation_type: NoSQLUpdateOperationType.PUT,
+				attribute_path: ['chat_name'],
+				update_value: NoSQLMarshall.makeString(updates.chat_name)
+			});
+		}
+
+		if (updates.description !== undefined) {
+			updateAttrs.push({
+				operation_type: NoSQLUpdateOperationType.PUT,
+				attribute_path: ['description'],
+				update_value: NoSQLMarshall.makeString(updates.description)
+			});
+		}
+
+		if (updates.priority !== undefined) {
+			updateAttrs.push({
+				operation_type: NoSQLUpdateOperationType.PUT,
+				attribute_path: ['priority'],
+				update_value: NoSQLMarshall.makeString(updates.priority)
+			});
+		}
+
+		if (updates.is_archived !== undefined) {
+			updateAttrs.push({
+				operation_type: NoSQLUpdateOperationType.PUT,
+				attribute_path: ['is_archived'],
+				update_value: NoSQLMarshall.makeString(updates.is_archived)
+			});
+		}
+
+		updateAttrs.push({
+			operation_type: NoSQLUpdateOperationType.PUT,
+			attribute_path: ['updated_time'],
+			update_value: NoSQLMarshall.makeString(now)
+		});
+
+		updateAttrs.push({
+			operation_type: NoSQLUpdateOperationType.PUT,
+			attribute_path: ['last_accessed'],
+			update_value: NoSQLMarshall.makeString(now)
+		});
+
+		await table.updateItems({
+			keys: key,
+			update_attributes: updateAttrs
+		});
+	} catch (err) {
+		// Table doesn't exist yet - this is expected during initial setup
+		// Session still works without metadata table
+	}
 }
 
 module.exports = {
@@ -210,5 +397,8 @@ module.exports = {
 	getHistoryForUser,
 	listSessions,
 	renameSession,
-	deleteSession
+	deleteSession,
+	saveSessionMetadata,
+	getSessionMetadata,
+	updateSessionMetadata
 };

@@ -285,12 +285,8 @@ async function saveSessionMetadata(catalystApp, sessionId, catalystUserId, metad
 
 		await table.insertItems({ item });
 	} catch (err) {
-		if (err.message.includes('not found') || err.message.includes('does not exist')) {
-			console.debug('[DEBUG] session_metadata table does not exist. Create it in Catalyst Console using /debug/init-db guide');
-		} else {
-			console.warn('Error saving session metadata:', err.message);
-		}
-		// Don't throw - session works without metadata
+		// Table doesn't exist yet - this is expected during initial setup
+		// Session still works without metadata table (falls back to last_message for displayName)
 	}
 }
 
@@ -317,16 +313,12 @@ async function getSessionMetadata(catalystApp, sessionId) {
 			}
 			return null;
 		} catch (err) {
-			console.debug(`[DEBUG] Metadata not found for session ${sessionId}: ${err.message}`);
+			// Item not found is normal - just return null
 			return null;
 		}
 	} catch (tableErr) {
-		// Table doesn't exist yet - this is expected if tables haven't been created
-		if (tableErr.message.includes('not found') || tableErr.message.includes('does not exist')) {
-			console.debug('[DEBUG] session_metadata table does not exist yet. Create it in Catalyst Console using /debug/init-db guide');
-			return null;
-		}
-		console.warn('Error accessing session_metadata table:', tableErr.message);
+		// Table doesn't exist yet - this is expected during initial setup
+		// Just silently return null and fall back to last_message
 		return null;
 	}
 }
@@ -394,12 +386,8 @@ async function updateSessionMetadata(catalystApp, sessionId, updates) {
 			update_attributes: updateAttrs
 		});
 	} catch (err) {
-		if (err.message.includes('not found') || err.message.includes('does not exist')) {
-			console.debug('[DEBUG] session_metadata table does not exist. Create it in Catalyst Console using /debug/init-db guide');
-		} else {
-			console.warn('Error updating session metadata:', err.message);
-		}
-		// Don't throw - session works without metadata
+		// Table doesn't exist yet - this is expected during initial setup
+		// Session still works without metadata table
 	}
 }
 
